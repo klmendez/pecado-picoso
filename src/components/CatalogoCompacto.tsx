@@ -59,7 +59,7 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
   });
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {list.map((p) => {
         const active = isSelected(p.id);
 
@@ -95,9 +95,12 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{p.name}</div>
+                    {/* ✅ Mobile: 2 líneas (no se come el nombre). Desktop: compacto */}
+                    <div className="text-sm font-black text-white leading-snug line-clamp-2 sm:line-clamp-1">
+                      {p.name}
+                    </div>
 
-                    <div className="text-[11px] text-white/55">
+                    <div className="mt-0.5 text-[11px] text-white/55">
                       {p.category === "gomitas" ? (
                         <>
                           Gomitas
