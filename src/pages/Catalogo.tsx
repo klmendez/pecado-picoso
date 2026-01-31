@@ -26,7 +26,11 @@ export default function Catalogo({
   }, [tab]);
 
   const containerClass = embedded ? "space-y-6" : "mx-auto max-w-6xl px-4 py-10";
-  const gridClass = embedded ? "grid sm:grid-cols-2 lg:grid-cols-3 gap-4" : "mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4";
+
+  // ✅ 2 columnas siempre (mobile y desktop)
+  const gridClass = embedded
+    ? "grid grid-cols-2 gap-3 sm:gap-4"
+    : "mt-8 grid grid-cols-2 gap-3 sm:gap-4";
 
   return (
     <div className={containerClass}>

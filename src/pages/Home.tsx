@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import Referencias from "../components/Referencias";
-import Catalogo from "../pages/Catalogo";
+
 import ArmarPedido from "./ArmarPedido";
 
 
