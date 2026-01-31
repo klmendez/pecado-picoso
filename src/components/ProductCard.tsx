@@ -5,9 +5,9 @@ import { cop } from "../lib/format";
 function getStartingPrice(product: Product): number | null {
   if (product.category === "gomitas") {
     const values: number[] = [];
-    Object.values(product.prices).forEach((versionPrices: any) => {
-      Object.values(versionPrices).forEach((price: any) => {
-        if (price && price > 0) values.push(price);
+    Object.values(product.prices).forEach((versionPrices) => {
+      Object.values(versionPrices).forEach((price) => {
+        if (typeof price === "number" && price > 0) values.push(price);
       });
     });
     return values.length ? Math.min(...values) : null;
@@ -24,6 +24,22 @@ function getStartingPrice(product: Product): number | null {
   }
 
   return null;
+}
+
+function getGomitasPrices(product: Product): { ahogada: number | null; picosa: number | null } {
+  if (product.category !== "gomitas") return { ahogada: null, picosa: null };
+
+  const ahogadaVals = Object.values(product.prices.ahogada).filter(
+    (v): v is number => typeof v === "number" && v > 0,
+  );
+  const picosaVals = Object.values(product.prices.picosa).filter(
+    (v): v is number => typeof v === "number" && v > 0,
+  );
+
+  return {
+    ahogada: ahogadaVals.length ? Math.min(...ahogadaVals) : null,
+    picosa: picosaVals.length ? Math.min(...picosaVals) : null,
+  };
 }
 
 function getSubtitle(product: Product): string {
@@ -45,6 +61,7 @@ export default function ProductCard({
 }: ProductCardProps) {
   const startingPrice = getStartingPrice(product);
   const subtitle = getSubtitle(product);
+  const gomitasPrices = product.category === "gomitas" ? getGomitasPrices(product) : null;
 
   return (
     <article
@@ -98,7 +115,22 @@ export default function ProductCard({
         <p className="mt-2 text-sm text-white/70 leading-snug line-clamp-2">{product.description}</p>
 
         <div className="mt-3 text-xs text-white/60 flex items-center gap-2">
-          {startingPrice !== null ? (
+          {product.category === "gomitas" && gomitasPrices ? (
+            <span className="flex flex-wrap gap-x-3 gap-y-1">
+              {gomitasPrices.ahogada !== null && (
+                <span>
+                  Ahogada{" "}
+                  <span className="font-bold text-white">{cop(gomitasPrices.ahogada)}</span>
+                </span>
+              )}
+              {gomitasPrices.picosa !== null && (
+                <span>
+                  Picosa{" "}
+                  <span className="font-bold text-white">{cop(gomitasPrices.picosa)}</span>
+                </span>
+              )}
+            </span>
+          ) : startingPrice !== null ? (
             <span>
               Desde <span className="font-bold text-white">{cop(startingPrice)}</span>
             </span>

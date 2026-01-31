@@ -22,7 +22,7 @@ import CatalogoCompacto from "../components/CatalogoCompacto";
 import CategoryTabs from "../components/CategoryTabs";
 import Referencias from "../components/Referencias";
 
-const WHATSAPP_DESTINATION = "573135707125";
+const WHATSAPP_DESTINATION = "573178371144";
 type TabValue = "todos" | "gomitas" | "frutafresh";
 
 function getAvailableSizes(product: Product): Size[] {

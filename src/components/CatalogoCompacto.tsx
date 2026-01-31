@@ -7,9 +7,9 @@ type TabValue = "todos" | "gomitas" | "frutafresh";
 function getStartingPrice(product: Product): number | null {
   if (product.category === "gomitas") {
     const values: number[] = [];
-    Object.values(product.prices).forEach((versionPrices: any) => {
-      Object.values(versionPrices).forEach((price: any) => {
-        if (price && price > 0) values.push(price);
+    Object.values(product.prices).forEach((versionPrices) => {
+      Object.values(versionPrices).forEach((price) => {
+        if (typeof price === "number" && price > 0) values.push(price);
       });
     });
     return values.length ? Math.min(...values) : null;
@@ -19,17 +19,35 @@ function getStartingPrice(product: Product): number | null {
   if ("fijo" in prices && typeof prices.fijo === "number") return prices.fijo;
 
   if (prices.porSize) {
-    const vals = Object.values(prices.porSize).filter((v: any) => typeof v === "number" && v > 0) as number[];
+    const vals = Object.values(prices.porSize).filter(
+      (v: any) => typeof v === "number" && v > 0,
+    ) as number[];
     return vals.length ? Math.min(...vals) : null;
   }
 
   return null;
 }
 
+function getGomitasMinByVersion(product: Product): { ahogada: number | null; picosa: number | null } {
+  if (product.category !== "gomitas") return { ahogada: null, picosa: null };
+
+  const ahogadaVals = Object.values(product.prices.ahogada).filter(
+    (v): v is number => typeof v === "number" && v > 0,
+  );
+  const picosaVals = Object.values(product.prices.picosa).filter(
+    (v): v is number => typeof v === "number" && v > 0,
+  );
+
+  return {
+    ahogada: ahogadaVals.length ? Math.min(...ahogadaVals) : null,
+    picosa: picosaVals.length ? Math.min(...picosaVals) : null,
+  };
+}
+
 type Props = {
   selectedIds: string[];
   onToggle: (p: Product) => void;
-  filter: TabValue; // ✅ nuevo
+  filter: TabValue;
 };
 
 export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Props) {
@@ -44,7 +62,9 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
     <div className="grid grid-cols-2 gap-3">
       {list.map((p) => {
         const active = isSelected(p.id);
-        const from = getStartingPrice(p);
+
+        const from = p.category === "frutafresh" ? getStartingPrice(p) : null;
+        const gv = p.category === "gomitas" ? getGomitasMinByVersion(p) : null;
 
         return (
           <button
@@ -58,7 +78,7 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
             ].join(" ")}
           >
             <div className="flex gap-3">
-              {/* Imagen (más grande) */}
+              {/* Imagen */}
               <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden bg-white/5">
                 {p.image ? (
                   <img
@@ -76,9 +96,20 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-black text-white">{p.name}</div>
+
                     <div className="text-[11px] text-white/55">
-                      {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
-                      {from != null ? ` • Desde ${cop(from)}` : ""}
+                      {p.category === "gomitas" ? (
+                        <>
+                          Gomitas
+                          {gv?.ahogada != null ? ` • Ahogada ${cop(gv.ahogada)}` : ""}
+                          {gv?.picosa != null ? ` • Picosa ${cop(gv.picosa)}` : ""}
+                        </>
+                      ) : (
+                        <>
+                          FrutaFresh
+                          {from != null ? ` • Desde ${cop(from)}` : ""}
+                        </>
+                      )}
                     </div>
                   </div>
 
