@@ -12,7 +12,6 @@ type Props = {
   actionLabel?: string; // “Agregar”
 };
 
-type TabValue = "todos" | "gomitas" | "frutafresh";
 
 function getGomitasMinByVersion(product: Product): { ahogada: number | null; picosa: number | null } {
   if (product.category !== "gomitas") return { ahogada: null, picosa: null };
