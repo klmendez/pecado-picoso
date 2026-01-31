@@ -6,7 +6,7 @@ type Props = {
   embedded?: boolean;
   showHeader?: boolean;
 
-  // ✅ carrito
+  // ✅ carrito / multi-select
   selectedProductIds: string[];
   onToggleProduct: (p: Product) => void;
 
@@ -27,7 +27,7 @@ export default function Catalogo({
       {showHeader ? (
         <div className="mx-auto max-w-6xl py-10">
           <h1 className="text-3xl font-black text-white">Catálogo</h1>
-          <p className="text-white/60 mt-2">Elige uno o varios productos y arma tu pedido.</p>
+          <p className="text-white/60 mt-2">Elige uno o varios productos.</p>
         </div>
       ) : null}
 
