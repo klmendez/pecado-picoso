@@ -5,15 +5,15 @@ import { cop } from "../lib/format";
 function getStartingPrice(product: Product): number | null {
   if (product.category === "gomitas") {
     const values: number[] = [];
-    Object.values(product.prices).forEach((versionPrices) => {
-      Object.values(versionPrices).forEach((price) => {
+    Object.values(product.prices).forEach((versionPrices: any) => {
+      Object.values(versionPrices).forEach((price: any) => {
         if (price && price > 0) values.push(price);
       });
     });
     return values.length ? Math.min(...values) : null;
   }
 
-  const { prices } = product;
+  const { prices } = product as any;
   if ("fijo" in prices && typeof prices.fijo === "number") return prices.fijo;
 
   if (prices.porSize) {
@@ -32,15 +32,15 @@ function getSubtitle(product: Product): string {
 
 type ProductCardProps = {
   product: Product;
-  onSelect?: (product: Product) => void;
-  actionLabel?: string;
+  onToggle?: (product: Product) => void; // ✅ toggle add/remove
+  actionLabel?: string; // label cuando NO está seleccionado (ej "Agregar")
   selected?: boolean;
 };
 
 export default function ProductCard({
   product,
-  onSelect,
-  actionLabel = "Armar",
+  onToggle,
+  actionLabel = "Agregar",
   selected = false,
 }: ProductCardProps) {
   const startingPrice = getStartingPrice(product);
@@ -49,11 +49,8 @@ export default function ProductCard({
   return (
     <article
       className={[
-        // ✅ Responsive: en grid 2 cols se ve mejor en mobile (vertical), y en sm+ vuelve horizontal
         "group flex flex-col sm:flex-row gap-4 rounded-3xl p-4 transition",
-        selected
-          ? "bg-white/15 ring-1 ring-white/80"
-          : "hover:bg-white/6 hover:ring-1 hover:ring-white/30",
+        selected ? "bg-white/15 ring-1 ring-white/80" : "hover:bg-white/6 hover:ring-1 hover:ring-white/30",
       ].join(" ")}
     >
       <div
@@ -65,16 +62,9 @@ export default function ProductCard({
         "
       >
         {product.image ? (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
+          <img src={product.image} alt={product.name} className="h-full w-full object-cover" loading="lazy" />
         ) : (
-          <div className="absolute inset-0 grid place-items-center text-white/30 text-xs">
-            Sin imagen
-          </div>
+          <div className="absolute inset-0 grid place-items-center text-white/30 text-xs">Sin imagen</div>
         )}
       </div>
 
@@ -82,18 +72,16 @@ export default function ProductCard({
         <div className="flex items-start justify-between gap-3">
           <div className="truncate text-base font-black text-white">{product.name}</div>
 
-          {onSelect ? (
+          {onToggle ? (
             <button
               type="button"
-              onClick={() => onSelect(product)}
+              onClick={() => onToggle(product)}
               className={[
                 "shrink-0 text-[10px] sm:text-xs uppercase tracking-[0.28em] rounded-full px-3 py-1 transition",
-                selected
-                  ? "bg-white text-neutral-950"
-                  : "border border-white/20 text-white/70 hover:border-white hover:text-white",
+                selected ? "bg-white text-neutral-950" : "border border-white/20 text-white/70 hover:border-white hover:text-white",
               ].join(" ")}
             >
-              {actionLabel}
+              {selected ? "Quitar" : actionLabel}
             </button>
           ) : (
             <Link
@@ -107,9 +95,7 @@ export default function ProductCard({
 
         <div className="mt-1 text-xs text-white/50">{subtitle}</div>
 
-        <p className="mt-2 text-sm text-white/70 leading-snug line-clamp-2">
-          {product.description}
-        </p>
+        <p className="mt-2 text-sm text-white/70 leading-snug line-clamp-2">{product.description}</p>
 
         <div className="mt-3 text-xs text-white/60 flex items-center gap-2">
           {startingPrice !== null ? (
@@ -122,7 +108,7 @@ export default function ProductCard({
 
           {selected ? (
             <span className="inline-flex items-center rounded-full bg-white text-neutral-950 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em]">
-              Seleccionado
+              En el pedido
             </span>
           ) : null}
         </div>

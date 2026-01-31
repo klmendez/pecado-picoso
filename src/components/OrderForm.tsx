@@ -1,55 +1,53 @@
-import { useMemo } from "react";
 import type { Barrio } from "../data/barrios";
 import { BARRIOS } from "../data/barrios";
-import { PRODUCTS, type Product, type Size, type Version } from "../data/products";
+import type { Product, Size } from "../data/products";
 import { TOPPINGS } from "../data/toppings";
 import { EXTRAS } from "../data/extras";
 import { cop } from "../lib/format";
 import type { PaymentMethod } from "../lib/whatsapp";
 
 type Props = {
+  // Datos cliente
   name: string;
   phone: string;
   setName: (v: string) => void;
   setPhone: (v: string) => void;
 
-  product: Product | null;
-  setProduct: (p: Product | null) => void;
+  // Producto seleccionado (solo para saber categoría y si aplica tamaño)
+  product: Product;
 
-  version: Version | null;
-  setVersion: (v: Version | null) => void;
-
+  // Tamaño
   size: Size | null;
   setSize: (v: Size | null) => void;
-
   sizesAvailable: Size[];
+
+  // Gomitas / toppings
   isGomitas: boolean;
   maxToppings: number;
-
   toppings: string[];
   toggleTopping: (id: string) => void;
 
+  // Extras
   extrasQty: Record<string, number>;
   setExtraQty: (id: string, qty: number) => void;
 
+  // Servicio / domicilio
   service: "llevar" | "domicilio" | "local";
   setService: (v: "llevar" | "domicilio" | "local") => void;
-
   barrio: Barrio | null;
   setBarrio: (b: Barrio | null) => void;
-
   address: string;
   setAddress: (v: string) => void;
-
   reference: string;
   setReference: (v: string) => void;
 
+  // Pago / comentarios
   paymentMethod: PaymentMethod;
   setPaymentMethod: (v: PaymentMethod) => void;
-
   comments: string;
   setComments: (v: string) => void;
 
+  // Totales + CTA
   total: number;
   canSend: boolean;
   onSend: () => void;
@@ -65,23 +63,31 @@ function sizeLabel(size: Size) {
 }
 
 export default function OrderForm({
+  // cliente
   name,
   phone,
   setName,
   setPhone,
+
+  // producto
   product,
-  setProduct,
-  version,
-  setVersion,
+
+  // tamaño
   size,
   setSize,
   sizesAvailable,
+
+  // toppings
   isGomitas,
   maxToppings,
   toppings,
   toggleTopping,
+
+  // extras
   extrasQty,
   setExtraQty,
+
+  // servicio
   service,
   setService,
   barrio,
@@ -90,36 +96,39 @@ export default function OrderForm({
   setAddress,
   reference,
   setReference,
+
+  // pago
   paymentMethod,
   setPaymentMethod,
   comments,
   setComments,
+
+  // total/cta
   total,
   canSend,
   onSend,
   nequiPhone,
 }: Props) {
-  const toppingsInfo = useMemo(() => {
-    if (!product) return "";
-    if (product.category === "gomitas") return `Incluye de 1 a ${maxToppings} toppings.`;
-    return `FrutaFresh: sin toppings incluidos. Extras con valor.`;
-  }, [product, maxToppings]);
-
   return (
     <div className="flex-1 space-y-6">
       {/* Intro */}
       <section>
-        <h2 className="text-3xl font-black">Arma tu pedido</h2>
+        <h2 className="text-3xl font-black">Completa tu pedido</h2>
         <p className="text-neutral-400 mt-2">
-          Toppings incluidos en <span className="font-bold">Gomitas</span>. Extras con valor para todos.
+          Toppings incluidos solo en <span className="font-bold">Gomitas</span>. Extras con valor para todos.
         </p>
       </section>
 
-      {/* Cliente */}
+      {/* Datos cliente */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 grid sm:grid-cols-2 gap-3">
         <div>
           <label className="text-sm font-bold text-neutral-200">Nombre</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Tu nombre" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+            placeholder="Tu nombre"
+          />
         </div>
         <div>
           <label className="text-sm font-bold text-neutral-200">Teléfono</label>
@@ -132,102 +141,33 @@ export default function OrderForm({
         </div>
       </section>
 
-      {/* Producto */}
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
-        <div className="font-black">Producto</div>
+      {/* Tamaño (si aplica) */}
+      <section className="space-y-2">
+        <div className="font-black">Tamaño</div>
 
-        <select
-          value={product?.id ?? ""}
-          onChange={(e) => setProduct(PRODUCTS.find((p) => p.id === e.target.value) ?? null)}
-          className={inputClass}
-        >
-          <option value="" disabled>
-            Selecciona un producto…
-          </option>
-          <optgroup label="Gomitas">
-            {PRODUCTS.filter((p) => p.category === "gomitas").map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
+        {sizesAvailable.length ? (
+          <div className="flex flex-wrap gap-2">
+            {sizesAvailable.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSize(s)}
+                className={[
+                  "rounded-2xl border px-4 py-2 font-bold",
+                  size === s ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
+                ].join(" ")}
+              >
+                {sizeLabel(s)}
+              </button>
             ))}
-          </optgroup>
-          <optgroup label="FrutaFresh">
-            {PRODUCTS.filter((p) => p.category === "frutafresh").map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-
-        {product ? <div className="text-sm text-neutral-400">{toppingsInfo}</div> : null}
+          </div>
+        ) : (
+          <div className="text-sm text-neutral-400">Este producto no requiere tamaño.</div>
+        )}
       </section>
 
-      {/* Versión */}
+      {/* Toppings (solo gomitas) */}
       {isGomitas ? (
-        <section className="space-y-2">
-          <div className="font-black">Versión</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setVersion("ahogada")}
-              className={[
-                "rounded-2xl border px-4 py-3 text-left",
-                version === "ahogada"
-                  ? "border-white/30 bg-white/10"
-                  : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
-              ].join(" ")}
-            >
-              <div className="font-black">Ahogada</div>
-              <div className="text-sm text-neutral-400">Más chamoy, más jugosita</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setVersion("picosa")}
-              className={[
-                "rounded-2xl border px-4 py-3 text-left",
-                version === "picosa"
-                  ? "border-white/30 bg-white/10"
-                  : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
-              ].join(" ")}
-            >
-              <div className="font-black">Picosa</div>
-              <div className="text-sm text-neutral-400">Más chilito, más intensa</div>
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Tamaño */}
-      {product ? (
-        <section className="space-y-2">
-          <div className="font-black">Tamaño</div>
-
-          {sizesAvailable.length ? (
-            <div className="flex flex-wrap gap-2">
-              {sizesAvailable.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setSize(s)}
-                  className={[
-                    "rounded-2xl border px-4 py-2 font-bold",
-                    size === s ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  {sizeLabel(s)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-neutral-400">Este producto no requiere tamaño.</div>
-          )}
-        </section>
-      ) : null}
-
-      {/* Toppings */}
-      {isGomitas && product ? (
         <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="font-black">Toppings incluidos</div>
@@ -262,7 +202,14 @@ export default function OrderForm({
             *Incluidos solo en Gomitas. No suman valor. (Mínimo 1 topping)*
           </div>
         </section>
-      ) : null}
+      ) : (
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+          <div className="font-black">Toppings</div>
+          <div className="text-sm text-neutral-400 mt-1">
+            FrutaFresh: sin toppings incluidos. Puedes agregar extras con valor.
+          </div>
+        </section>
+      )}
 
       {/* Extras */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
@@ -283,6 +230,7 @@ export default function OrderForm({
                     type="button"
                     className="h-9 w-9 rounded-xl border border-neutral-800 bg-neutral-950/30 hover:bg-white/5"
                     onClick={() => setExtraQty(e.id, Math.max(0, qty - 1))}
+                    aria-label={`Quitar ${e.name}`}
                   >
                     −
                   </button>
@@ -291,6 +239,7 @@ export default function OrderForm({
                     type="button"
                     className="h-9 w-9 rounded-xl border border-neutral-800 bg-neutral-950/30 hover:bg-white/5"
                     onClick={() => setExtraQty(e.id, qty + 1)}
+                    aria-label={`Agregar ${e.name}`}
                   >
                     +
                   </button>
@@ -313,7 +262,9 @@ export default function OrderForm({
             onClick={() => setService("domicilio")}
             className={[
               "rounded-2xl border px-4 py-3 text-left",
-              service === "domicilio" ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
+              service === "domicilio"
+                ? "border-white/30 bg-white/10"
+                : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
             ].join(" ")}
           >
             <div className="font-black">A domicilio</div>
@@ -325,7 +276,9 @@ export default function OrderForm({
             onClick={() => setService("llevar")}
             className={[
               "rounded-2xl border px-4 py-3 text-left",
-              service === "llevar" ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
+              service === "llevar"
+                ? "border-white/30 bg-white/10"
+                : "border-neutral-800 bg-neutral-900 hover:bg-white/5",
             ].join(" ")}
           >
             <div className="font-black">Para llevar</div>
@@ -445,10 +398,13 @@ export default function OrderForm({
 
         {!canSend ? (
           <div className="mt-2 text-xs text-neutral-400">
-            Completa producto, datos, servicio y mínimo 1 topping (si es gomitas) para enviar.
+            Completa datos, servicio y domicilio (si aplica), y mínimo 1 topping (si es gomitas) para enviar.
           </div>
         ) : null}
       </section>
+
+      {/* Nota (solo para claridad interna, no afecta lógica) */}
+      <div className="hidden">{product.id}</div>
     </div>
   );
 }

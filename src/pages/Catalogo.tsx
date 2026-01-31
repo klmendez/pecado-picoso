@@ -1,62 +1,44 @@
-import { useMemo, useState } from "react";
-import CategoryTabs from "../components/CategoryTabs";
+import type { Product } from "../data/products";
+import { PRODUCTS } from "../data/products";
 import ProductCard from "../components/ProductCard";
-import { PRODUCTS, type Product } from "../data/products";
 
-type CatalogoProps = {
-  onSelectProduct?: (product: Product) => void;
-  selectedProductIds?: string[];
-  showHeader?: boolean;
+type Props = {
   embedded?: boolean;
-  actionLabel?: string;
+  showHeader?: boolean;
+
+  // ✅ carrito
+  selectedProductIds: string[];
+  onToggleProduct: (p: Product) => void;
+
+  actionLabel?: string; // “Agregar”
 };
 
 export default function Catalogo({
-  onSelectProduct,
-  selectedProductIds = [],
-  showHeader = true,
   embedded = false,
-  actionLabel,
-}: CatalogoProps = {}) {
-  const [tab, setTab] = useState<"todos" | "gomitas" | "frutafresh">("todos");
-
-  const list = useMemo(() => {
-    if (tab === "todos") return PRODUCTS;
-    return PRODUCTS.filter((p) => p.category === tab);
-  }, [tab]);
-
-  const containerClass = embedded ? "space-y-6" : "mx-auto max-w-6xl px-4 py-10";
-
-  // ✅ 2 columnas siempre (mobile y desktop)
-  const gridClass = embedded
-    ? "grid grid-cols-2 gap-3 sm:gap-4"
-    : "mt-8 grid grid-cols-2 gap-3 sm:gap-4";
+  showHeader = true,
+  selectedProductIds,
+  onToggleProduct,
+  actionLabel = "Agregar",
+}: Props) {
+  const isSelected = (id: string) => selectedProductIds.includes(id);
 
   return (
-    <div className={containerClass}>
+    <div className={embedded ? "" : "px-4"}>
       {showHeader ? (
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-black">Catálogo</h2>
-            <p className="text-neutral-400 mt-2">Gomitas y FrutaFresh en un solo lugar.</p>
-          </div>
-          <CategoryTabs value={tab} onChange={setTab} />
+        <div className="mx-auto max-w-6xl py-10">
+          <h1 className="text-3xl font-black text-white">Catálogo</h1>
+          <p className="text-white/60 mt-2">Elige uno o varios productos y arma tu pedido.</p>
         </div>
-      ) : (
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h3 className="text-2xl font-black">Selecciona tu capricho</h3>
-          <CategoryTabs value={tab} onChange={setTab} />
-        </div>
-      )}
+      ) : null}
 
-      <div className={gridClass}>
-        {list.map((p) => (
+      <div className="mx-auto max-w-6xl grid gap-3">
+        {PRODUCTS.map((p) => (
           <ProductCard
             key={p.id}
             product={p}
-            onSelect={onSelectProduct}
-            selected={selectedProductIds.includes(p.id)}
-            actionLabel={actionLabel ?? (onSelectProduct ? "Elegir" : undefined)}
+            selected={isSelected(p.id)}
+            onToggle={onToggleProduct}
+            actionLabel={actionLabel}
           />
         ))}
       </div>

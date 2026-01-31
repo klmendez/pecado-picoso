@@ -43,9 +43,7 @@ export default function Navbar() {
 
             {/* NAV DESKTOP */}
             <nav className="hidden md:flex items-center gap-1">
-              <NavLink to="/catalogo" className={navLinkClass}>
-                Catálogo
-              </NavLink>
+              
               <NavLink to="/armar" className={navLinkClass}>
                 Armar pedido
               </NavLink>

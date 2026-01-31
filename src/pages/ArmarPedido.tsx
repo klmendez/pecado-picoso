@@ -1,99 +1,65 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import type { Barrio } from "../data/barrios";
-import { PRODUCTS, isFixedPrice, type Product, type Size, type Version } from "../data/products";
+import { BARRIOS } from "../data/barrios";
+import type { Product, Size, Version } from "../data/products";
+import { isFixedPrice } from "../data/products";
 import { TOPPINGS } from "../data/toppings";
 import { EXTRAS } from "../data/extras";
-import { getBasePrice, extrasTotal, deliveryCost } from "../lib/pricing";
-import { buildCode, buildWhatsAppMessage, waLink, type PaymentMethod } from "../lib/whatsapp";
 import { cop } from "../lib/format";
+import { getBasePrice, extrasTotal, deliveryCost } from "../lib/pricing";
+import { buildCode, buildWhatsAppMessage, waLink, type PaymentMethod, type Service, type OrderItem } from "../lib/whatsapp";
 import { NEQUI_PHONE } from "../data/constants";
-import Catalogo from "./Catalogo";
-import OrderAside from "../components/OrderAside";
-import OrderForm from "../components/OrderForm";
-import ahogadoRefImg from "../assets/referencias/ahogado.jpg";
-import picosinRefImg from "../assets/referencias/picosin.jpg";
+
+import CatalogoCompacto from "../components/CatalogoCompacto";
+import Referencias from "../components/Referencias";
 
 const WHATSAPP_DESTINATION = "573135707125";
 
-const VERSION_REFERENCES: Array<{
-  key: Version;
-  title: string;
-  subtitle: string;
-  image: string;
-}> = [
-  { key: "ahogada", title: "Capricho Ahogado", subtitle: "Más chamoy, más jugosita.", image: ahogadoRefImg },
-  { key: "picosa", title: "Capricho Picosín", subtitle: "Más chilito, más intensidad.", image: picosinRefImg },
-];
-
-function findProductById(id: string | null): Product | null {
-  if (!id) return null;
-  return PRODUCTS.find((p) => p.id === id) ?? null;
-}
-
-function sizeLabel(size: Size | null) {
-  if (!size) return "";
-  switch (size) {
-    case "pequeno":
-      return "Pequeño";
-    case "mediano":
-      return "Mediano";
-    case "grande":
-      return "Grande";
-    default:
-      return size;
-  }
-}
-
-function versionLabel(version: Version | null) {
-  if (!version) return "";
-  return version === "ahogada" ? "Ahogada" : "Picosa";
-}
-
-function getAvailableSizes(product: Product | null): Size[] {
-  if (!product) return [];
+function getAvailableSizes(product: Product): Size[] {
   if (product.category === "gomitas") return product.sizes;
   if (isFixedPrice(product.prices)) return product.sizes ?? [];
-
   const entries = Object.entries(product.prices.porSize ?? {}) as Array<[Size, number | undefined]>;
-  return entries
-    .filter(([, value]) => typeof value === "number" && value > 0)
-    .map(([size]) => size);
+  return entries.filter(([, v]) => typeof v === "number" && v > 0).map(([s]) => s);
+}
+
+function defaultSize(product: Product): Size | null {
+  const sizes = getAvailableSizes(product);
+  return sizes[0] ?? null;
+}
+
+function maxToppingsFor(product: Product): number {
+  if (product.category !== "gomitas") return 0;
+  return Math.max(0, product.toppingsIncludedMax ?? 0);
+}
+
+function labelSize(size: Size) {
+  return size === "pequeno" ? "Pequeño" : size === "mediano" ? "Mediano" : "Grande";
+}
+
+function toppingsNames(ids: string[]) {
+  const m = new Map(TOPPINGS.map((t) => [t.id, t.name]));
+  return ids.map((id) => m.get(id) ?? id);
+}
+
+function extrasLine(extrasQty: Record<string, number>) {
+  return EXTRAS.flatMap((e) => {
+    const qty = extrasQty[e.id] ?? 0;
+    return qty > 0 ? [`${e.name} x${qty}`] : [];
+  });
 }
 
 export default function ArmarPedido() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const preSelectedId = searchParams.get("productId");
+  const [items, setItems] = useState<OrderItem[]>([]);
 
-  // Producto seleccionado (primero por URL si viene)
-  const [product, setProduct] = useState<Product | null>(() => findProductById(preSelectedId));
-
-  // IMPORTANTE: ahora version arranca en null porque la define el paso "Referencias"
-  const [version, setVersion] = useState<Version | null>(null);
-  const [size, setSize] = useState<Size | null>(null);
-
-  const [toppings, setToppings] = useState<string[]>([]);
-  const [extrasQty, setExtrasQty] = useState<Record<string, number>>({});
-
-  const [service, setService] = useState<"llevar" | "domicilio" | "local">("llevar");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [service, setService] = useState<Service>("llevar");
   const [barrio, setBarrio] = useState<Barrio | null>(null);
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
-
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
   const [comments, setComments] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
 
-  const isGomitas = product?.category === "gomitas";
-  const availableSizes = useMemo(() => getAvailableSizes(product), [product]);
-
-  const maxToppings = useMemo(() => {
-    if (!product || product.category !== "gomitas") return 0;
-    return Math.max(0, product.toppingsIncludedMax ?? 0);
-  }, [product]);
-
-  // Limpia datos de domicilio si el servicio no es domicilio
   useEffect(() => {
     if (service !== "domicilio") {
       setBarrio(null);
@@ -102,349 +68,570 @@ export default function ArmarPedido() {
     }
   }, [service]);
 
-  // Sincroniza product con query param
-  useEffect(() => {
-    const lookup = findProductById(preSelectedId);
-    if ((lookup?.id ?? null) !== (product?.id ?? null)) {
-      setProduct(lookup);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preSelectedId]);
+  const selectedIds = useMemo(() => items.map((it) => it.product.id), [items]);
 
-  // Al cambiar producto: reset de todo lo dependiente (y size default)
-  useEffect(() => {
-    if (!product) {
-      setVersion(null);
-      setSize(null);
-      setToppings([]);
-      setExtrasQty({});
-      return;
-    }
-
-    // Size por defecto (mantiene si sigue válida)
-    setSize((prev) => {
-      if (prev && availableSizes.includes(prev)) return prev;
-      return availableSizes[0] ?? null;
+  const toggleProduct = (p: Product) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.product.id === p.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next.splice(idx, 1);
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          product: p,
+          qty: 1,
+          version: p.category === "gomitas" ? null : null,
+          size: defaultSize(p),
+          toppingIds: [],
+          extrasQty: {},
+        },
+      ];
     });
+  };
 
-    // ✅ Reset clave del flujo
-    setToppings([]);
-    setExtrasQty({});
+  const updateItem = (productId: string, patch: Partial<OrderItem>) => {
+    setItems((prev) => prev.map((it) => (it.product.id === productId ? { ...it, ...patch } : it)));
+  };
 
-    // Si NO es gomitas, no hay paso referencias => version null siempre
-    // Si SÍ es gomitas, dejamos version null hasta que el usuario elija referencia
-    setVersion(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product?.id, availableSizes]);
+  const updateQty = (productId: string, qty: number) => {
+    setItems((prev) =>
+      prev
+        .map((it) => (it.product.id === productId ? { ...it, qty } : it))
+        .filter((it) => it.qty > 0),
+    );
+  };
 
-  // Limita toppings (solo gomitas)
-  useEffect(() => {
-    if (!isGomitas) return;
-    if (maxToppings > 0 && toppings.length > maxToppings) {
-      setToppings((prev) => prev.slice(0, maxToppings));
-    }
-  }, [isGomitas, maxToppings, toppings.length]);
+  // ====== precios por item (para resumen completo) ======
+  const pricedItems = useMemo(() => {
+    return items.map((it) => {
+      const baseUnit = getBasePrice(it.product, it.product.category === "gomitas" ? it.version : null, it.size);
+      const extrasUnit = extrasTotal(it.extrasQty, EXTRAS);
+      const unit = baseUnit + extrasUnit;
+      const line = unit * it.qty;
 
-  const extrasSum = useMemo(() => extrasTotal(extrasQty, EXTRAS), [extrasQty]);
+      return {
+        ...it,
+        baseUnit,
+        extrasUnit,
+        unit,
+        line,
+      };
+    });
+  }, [items]);
 
-  const subtotal = useMemo(() => {
-    if (!product) return 0;
-    const base = getBasePrice(product, isGomitas ? version : null, size);
-    return base + extrasSum;
-  }, [product, isGomitas, version, size, extrasSum]);
-
+  const subtotal = useMemo(() => pricedItems.reduce((sum, it) => sum + it.line, 0), [pricedItems]);
   const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
   const total = subtotal + delivery;
 
-  const toppingsNames = useMemo(() => {
-    if (!isGomitas) return [];
-    const lookup = new Map(TOPPINGS.map((t) => [t.id, t.name]));
-    return toppings.map((id) => lookup.get(id) ?? id);
-  }, [isGomitas, toppings]);
+  // ====== validaciones ======
+  const itemsOk = items.length > 0;
 
-  const extrasList = useMemo(
-    () =>
-      EXTRAS.flatMap((extra) => {
-        const qty = extrasQty[extra.id] ?? 0;
-        return qty > 0 ? [`${extra.name} x${qty}`] : [];
-      }),
-    [extrasQty],
-  );
+  const gomitasOk = useMemo(() => {
+    for (const it of items) {
+      if (it.product.category !== "gomitas") continue;
+      if (!it.version) return false;
 
-  const detailLine = useMemo(() => {
-    if (!product) return "";
-    const parts: string[] = [];
-
-    if (product.category === "gomitas") {
-      if (version) parts.push(versionLabel(version));
-      if (size) parts.push(sizeLabel(size));
-    } else if (!isFixedPrice(product.prices) && size) {
-      parts.push(sizeLabel(size));
-    }
-
-    return parts.join(" · ");
-  }, [product, version, size]);
-
-  const summaryItems = useMemo(() => {
-    if (!product) return [];
-    return [
-      {
-        id: product.id,
-        title: product.name,
-        detail: detailLine || undefined,
-        toppings: toppingsNames.length ? toppingsNames : undefined,
-        extras: extrasList.length ? extrasList : undefined,
-        price: subtotal,
-      },
-    ];
-  }, [product, detailLine, toppingsNames, extrasList, subtotal]);
-
-  // ✅ FLUJO: si es gomitas, el formulario solo aparece cuando el usuario elige referencia/version
-  const referencesDone = !isGomitas || Boolean(version);
-  const formEnabled = Boolean(product) && referencesDone;
-
-  const needsSize = Boolean(product) && availableSizes.length > 0;
-  const hasSize = !needsSize || Boolean(size);
-
-  const toppingsValid =
-    !isGomitas || maxToppings === 0 || (toppings.length >= 1 && toppings.length <= maxToppings);
-
-  const canSend = Boolean(
-    formEnabled &&
-      product &&
-      subtotal > 0 &&
-      hasSize &&
-      toppingsValid &&
-      name.trim() &&
-      phone.trim() &&
-      service !== "local" &&
-      (service !== "domicilio" || (barrio && address.trim())),
-  );
-
-  const handleSelectProduct = (next: Product | null) => {
-    setProduct(next);
-
-    const nextParams = new URLSearchParams(searchParams);
-    if (next) nextParams.set("productId", next.id);
-    else nextParams.delete("productId");
-    setSearchParams(nextParams);
-  };
-
-  const handleSelectReference = (v: Version) => {
-    setVersion(v);
-  };
-
-  const handleToggleTopping = (id: string) => {
-    if (!isGomitas) return;
-
-    setToppings((prev) => {
-      if (prev.includes(id)) return prev.filter((t) => t !== id);
-      if (maxToppings > 0 && prev.length >= maxToppings) return prev;
-      return [...prev, id];
-    });
-  };
-
-  const handleSetExtraQty = (id: string, qty: number) => {
-    setExtrasQty((prev) => {
-      if (qty <= 0) {
-        const next = { ...prev };
-        delete next[id];
-        return next;
+      const max = maxToppingsFor(it.product);
+      if (max > 0) {
+        if (it.toppingIds.length < 1) return false;
+        if (it.toppingIds.length > max) return false;
       }
-      return { ...prev, [id]: qty };
-    });
-  };
+    }
+    return true;
+  }, [items]);
+
+  const deliveryOk = service !== "local" && (service !== "domicilio" || (barrio && address.trim()));
+
+  const canSend = Boolean(itemsOk && gomitasOk && subtotal > 0 && name.trim() && phone.trim() && deliveryOk);
 
   const handleSend = () => {
-    if (!canSend || !product) return;
+    if (!canSend) return;
 
     const origin = window.location.origin;
     const code = buildCode();
-
-    const serviceLabel =
-      service === "domicilio" ? "Domicilio" : service === "llevar" ? "Para llevar" : "En el local (Próximamente)";
-
-    const barrioLine =
-      service === "domicilio" && barrio
-        ? `Barrio: ${barrio.name} ${barrio.price == null ? "(Se confirma)" : `(${cop(barrio.price)})`}`
-        : undefined;
-
-    const addressLine =
-      service === "domicilio"
-        ? `Dirección: ${address.trim()}${reference.trim() ? ` • Ref: ${reference.trim()}` : ""}`
-        : undefined;
 
     const message = buildWhatsAppMessage({
       origin,
       code,
       name: name.trim(),
       phone: phone.trim(),
-      serviceLabel,
-      barrioLine,
-      addressLine,
-      product,
-      detailLine,
-      toppingsLine: toppingsNames.length ? toppingsNames.join(", ") : undefined,
-      extrasLine: extrasList.length ? extrasList.join(", ") : undefined,
+      service,
+      barrio,
+      address,
+      reference,
+      items,
       subtotal,
       delivery,
       total,
+      toppingsCatalog: TOPPINGS,
+      extrasCatalog: EXTRAS,
       paymentMethod,
       comments: comments.trim() || undefined,
     });
 
-    const url = waLink(WHATSAPP_DESTINATION, message);
-    window.open(url, "_blank");
+    window.open(waLink(WHATSAPP_DESTINATION, message), "_blank");
   };
 
   return (
     <div className="bg-neutral-950 text-white">
-      {/* HERO */}
-      <section className="px-4 py-10 sm:py-14">
-        <div className="mx-auto max-w-4xl text-center space-y-4">
-          <span className="text-xs uppercase tracking-[0.35em] text-white/50">Arma tu pedido</span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black">Caprichos picosos listos para compartir</h1>
-          <p className="text-white/70">Catálogo → Referencias → Formulario</p>
+      {/* Header (plano) */}
+      <header className="px-4 pt-8 pb-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="text-xs uppercase tracking-[0.35em] text-white/50">Armar pedido</div>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black">Elige y envía</h1>
+            <div className="text-xs text-white/50">{items.length} seleccionados</div>
+          </div>
         </div>
-      </section>
+      </header>
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 pb-16">
-        {/* 1) CATÁLOGO */}
-        <section className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-black">1) Elige tu capricho</h2>
-              <p className="text-white/60">
-                Toca <span className="font-semibold text-white">"Elegir"</span> para continuar.
-              </p>
-            </div>
-            <span className="text-xs uppercase tracking-[0.3em] text-white/40">Catálogo express</span>
-          </div>
+      <div className="mx-auto max-w-6xl px-4 pb-14">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+          {/* LEFT */}
+          <main className="space-y-8">
+            {/* 1) Elegir productos */}
+            <section>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black">1) Elegir productos</div>
+                  <div className="text-xs text-white/55">Toca para agregar o quitar.</div>
+                </div>
+              </div>
 
-          <Catalogo
-            embedded
-            showHeader={false}
-            actionLabel={product ? "Cambiar" : "Elegir"}
-            onSelectProduct={handleSelectProduct}
-            selectedProductIds={product ? [product.id] : []}
-          />
-        </section>
+              <div className="mt-4">
+                <CatalogoCompacto selectedIds={selectedIds} onToggle={toggleProduct} />
+              </div>
+            </section>
 
-        {/* Si no hay producto, no seguimos */}
-        {!product ? (
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-center backdrop-blur-sm">
-            <p className="text-white/70">Elige un producto del catálogo para continuar.</p>
-          </div>
-        ) : (
-          <>
-            {/* 2) REFERENCIAS (solo gomitas) */}
-            {isGomitas ? (
-              <section className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <h2 className="text-2xl font-black">2) Elige tu referencia</h2>
-                  <p className="text-white/60">
-                    Selecciona la versión para continuar con tu pedido.
-                  </p>
+            {/* 2) Ajustar por producto */}
+            {items.length ? (
+              <section>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black">2) Ajustar</div>
+                    <div className="text-xs text-white/55">Cantidad, tamaño, (gomitas: referencia y toppings), extras.</div>
+                  </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {VERSION_REFERENCES.map((ref) => {
-                    const active = version === ref.key;
+                <div className="mt-4 space-y-6">
+                  {items.map((it) => {
+                    const p = it.product;
+                    const isGomitas = p.category === "gomitas";
+                    const sizes = getAvailableSizes(p);
+                    const maxT = maxToppingsFor(p);
+
                     return (
-                      <button
-                        key={ref.key}
-                        type="button"
-                        onClick={() => handleSelectReference(ref.key)}
-                        className={[
-                          "text-left overflow-hidden rounded-3xl border backdrop-blur-sm transition",
-                          active
-                            ? "border-white/70 bg-white/[0.10]"
-                            : "border-white/10 bg-white/[0.04] hover:border-white/30 hover:bg-white/[0.06]",
-                        ].join(" ")}
-                      >
-                        <img src={ref.image} alt={ref.title} className="h-48 w-full object-cover" loading="lazy" />
-                        <div className="space-y-2 px-6 py-5">
-                          <div className="text-sm uppercase tracking-[0.3em] text-white/50">Versión</div>
-                          <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-xl font-black">{ref.title}</h3>
-                            {active ? (
-                              <span className="inline-flex items-center rounded-full bg-white text-neutral-950 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em]">
-                                Seleccionado
-                              </span>
-                            ) : null}
+                      <div key={p.id} className="border-t border-white/10 pt-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-black truncate">{p.name}</div>
+                            <div className="text-[11px] text-white/55">{isGomitas ? "Gomitas" : "FrutaFresh"}</div>
                           </div>
-                          <p className="text-sm text-white/65">{ref.subtitle}</p>
+
+                          {/* qty */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="h-8 w-8 border border-white/10 bg-transparent hover:bg-white/[0.04]"
+                              onClick={() => updateQty(p.id, Math.max(0, it.qty - 1))}
+                            >
+                              −
+                            </button>
+                            <div className="w-8 text-center text-sm font-black">{it.qty}</div>
+                            <button
+                              type="button"
+                              className="h-8 w-8 border border-white/10 bg-transparent hover:bg-white/[0.04]"
+                              onClick={() => updateQty(p.id, it.qty + 1)}
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
-                      </button>
+
+                        {/* size */}
+                        <div className="mt-3">
+                          <div className="text-[11px] font-black text-white/70">Tamaño</div>
+                          {sizes.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {sizes.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => updateItem(p.id, { size: s })}
+                                  className={[
+                                    "border border-white/10 px-3 py-1 text-[11px] font-black",
+                                    it.size === s ? "text-white" : "text-white/55 hover:text-white",
+                                  ].join(" ")}
+                                >
+                                  {labelSize(s)}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-[11px] text-white/45">No aplica.</div>
+                          )}
+                        </div>
+
+                        {/* referencias + toppings */}
+                        {isGomitas ? (
+                          <div className="mt-4 space-y-4">
+                            <Referencias
+                              value={it.version as any}
+                              onChange={(v) => updateItem(p.id, { version: v as Version })}
+                              small
+                              title="Referencia"
+                              subtitle="Selecciona una"
+                            />
+
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <div className="text-[11px] font-black text-white/70">Toppings</div>
+                                <div className="text-[11px] text-white/55">
+                                  {it.toppingIds.length}/{maxT}
+                                </div>
+                              </div>
+
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                {TOPPINGS.map((t) => {
+                                  const active = it.toppingIds.includes(t.id);
+                                  return (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const prev = it.toppingIds;
+                                        const next = active
+                                          ? prev.filter((x) => x !== t.id)
+                                          : maxT > 0 && prev.length >= maxT
+                                            ? prev
+                                            : [...prev, t.id];
+                                        updateItem(p.id, { toppingIds: next });
+                                      }}
+                                      className={[
+                                        "border border-white/10 px-3 py-2 text-left text-[11px] font-black",
+                                        active ? "text-white" : "text-white/55 hover:text-white",
+                                      ].join(" ")}
+                                    >
+                                      {t.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="mt-2 text-[10px] text-white/40">Mínimo 1 topping en gomitas.</div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* extras */}
+                        <div className="mt-4">
+                          <div className="text-[11px] font-black text-white/70">Extras</div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            {EXTRAS.map((e) => {
+                              const qty = it.extrasQty[e.id] ?? 0;
+                              return (
+                                <div key={e.id} className="border border-white/10 p-2">
+                                  <div className="text-[11px] font-black">{e.name}</div>
+                                  <div className="text-[10px] text-white/55">{cop(e.price)}</div>
+
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      className="h-7 w-7 border border-white/10 hover:bg-white/[0.04]"
+                                      onClick={() =>
+                                        updateItem(p.id, {
+                                          extrasQty: { ...it.extrasQty, [e.id]: Math.max(0, qty - 1) },
+                                        })
+                                      }
+                                    >
+                                      −
+                                    </button>
+                                    <div className="w-7 text-center text-sm font-black">{qty}</div>
+                                    <button
+                                      type="button"
+                                      className="h-7 w-7 border border-white/10 hover:bg-white/[0.04]"
+                                      onClick={() =>
+                                        updateItem(p.id, {
+                                          extrasQty: { ...it.extrasQty, [e.id]: qty + 1 },
+                                        })
+                                      }
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
 
-                {!version ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-white/70">
-                    Elige una referencia para habilitar el formulario.
+                {!gomitasOk ? (
+                  <div className="mt-4 text-xs text-white/60">
+                    Falta configurar alguna gomita: referencia y mínimo 1 topping.
                   </div>
                 ) : null}
               </section>
             ) : null}
 
-            {/* 3) FORM + RESUMEN (solo cuando corresponde) */}
-            {formEnabled ? (
-              <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <OrderForm
-                  name={name}
-                  phone={phone}
-                  setName={setName}
-                  setPhone={setPhone}
-                  product={product}
-                  setProduct={handleSelectProduct}
-                  version={version}
-                  setVersion={setVersion}
-                  size={size}
-                  setSize={setSize}
-                  sizesAvailable={availableSizes}
-                  isGomitas={Boolean(isGomitas)}
-                  maxToppings={maxToppings}
-                  toppings={toppings}
-                  toggleTopping={handleToggleTopping}
-                  extrasQty={extrasQty}
-                  setExtraQty={handleSetExtraQty}
-                  service={service}
-                  setService={setService}
-                  barrio={barrio}
-                  setBarrio={setBarrio}
-                  address={address}
-                  setAddress={setAddress}
-                  reference={reference}
-                  setReference={setReference}
-                  paymentMethod={paymentMethod}
-                  setPaymentMethod={setPaymentMethod}
-                  comments={comments}
-                  setComments={setComments}
-                  total={total}
-                  canSend={canSend}
-                  onSend={handleSend}
-                  nequiPhone={NEQUI_PHONE}
-                />
+            {/* 3) Datos / servicio / pago */}
+            <section className="border-t border-white/10 pt-6">
+              <div className="text-sm font-black">3) Datos y envío</div>
 
-                <OrderAside
-                  items={summaryItems}
-                  service={service}
-                  barrio={barrio}
-                  address={address}
-                  subtotal={subtotal}
-                  delivery={delivery}
-                  total={total}
-                  canSend={canSend}
-                  onSend={handleSend}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-[11px] font-black text-white/70">Nombre</label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                    placeholder="Tu nombre"
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-[11px] font-black text-white/70">Teléfono</label>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                    placeholder="+57 3xx xxx xxxx"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setService("llevar")}
+                  className={[
+                    "border border-white/10 px-3 py-3 text-left",
+                    service === "llevar" ? "text-white" : "text-white/55 hover:text-white",
+                  ].join(" ")}
+                >
+                  <div className="text-xs font-black">Para llevar</div>
+                  <div className="text-[11px] text-white/55">Recoges tú</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setService("domicilio")}
+                  className={[
+                    "border border-white/10 px-3 py-3 text-left",
+                    service === "domicilio" ? "text-white" : "text-white/55 hover:text-white",
+                  ].join(" ")}
+                >
+                  <div className="text-xs font-black">Domicilio</div>
+                  <div className="text-[11px] text-white/55">Según barrio</div>
+                </button>
+              </div>
+
+              {service === "domicilio" ? (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-[11px] font-black text-white/70">Barrio</label>
+                    <select
+                      value={barrio?.id ?? ""}
+                      onChange={(e) => setBarrio(BARRIOS.find((b) => b.id === e.target.value) ?? null)}
+                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                    >
+                      <option value="" disabled>
+                        Elige tu barrio…
+                      </option>
+                      {BARRIOS.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-[11px] font-black text-white/70">Dirección</label>
+                    <input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                      placeholder="Cra 7 # 12-34"
+                    />
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-[11px] font-black text-white/70">Referencia</label>
+                    <input
+                      value={reference}
+                      onChange={(e) => setReference(e.target.value)}
+                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                      placeholder="Portón negro…"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-black">Pago</div>
+                  <div className="text-[11px] text-white/55">
+                    Nequi: <span className="font-black text-white/80">{NEQUI_PHONE}</span>
+                  </div>
+                </div>
+
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                  className="mt-2 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                >
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Efectivo">Efectivo</option>
+                </select>
+
+                <textarea
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  className="mt-2 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                  rows={3}
+                  placeholder="Comentarios (opcional)"
                 />
               </div>
-            ) : (
-              // Si es gomitas y aún no eligió versión, no mostramos formulario
-              isGomitas ? null : null
-            )}
-          </>
-        )}
+
+              {/* CTA Mobile */}
+              <div className="lg:hidden mt-5">
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  className={[
+                    "w-full border border-white/20 py-3 font-black",
+                    canSend ? "text-white hover:bg-white/[0.04]" : "text-white/35 cursor-not-allowed",
+                  ].join(" ")}
+                >
+                  Enviar WhatsApp • {cop(total)}
+                </button>
+                {!canSend ? (
+                  <div className="mt-2 text-[11px] text-white/55">
+                    Falta: productos, datos, domicilio (si aplica) y gomitas configuradas.
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </main>
+
+          {/* RIGHT: Resumen con precios */}
+          <aside className="lg:sticky lg:top-24 h-fit">
+            <div className="border-b border-white/10 pb-3">
+              <div className="text-sm font-black">Resumen</div>
+              <div className="text-xs text-white/55">Detalle de precios</div>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {pricedItems.length ? (
+                pricedItems.map((it) => {
+                  const p = it.product;
+                  const isGomitas = p.category === "gomitas";
+                  const tops = isGomitas ? toppingsNames(it.toppingIds) : [];
+                  const ex = extrasLine(it.extrasQty);
+
+                  return (
+                    <div key={p.id} className="border-b border-white/10 pb-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-black truncate">{p.name}</div>
+                          <div className="text-[11px] text-white/55">
+                            Cantidad: <span className="font-black text-white/75">x{it.qty}</span>
+                          </div>
+
+                          {/* detalle gomitas */}
+                          {isGomitas ? (
+                            <div className="mt-1 text-[11px] text-white/55">
+                              Referencia:{" "}
+                              <span className="font-black text-white/75">{it.version ? it.version : "Pendiente"}</span>
+                              {tops.length ? (
+                                <div className="mt-1">
+                                  Toppings: <span className="text-white/70">{tops.join(", ")}</span>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {/* extras */}
+                          {ex.length ? (
+                            <div className="mt-1 text-[11px] text-white/55">
+                              Extras: <span className="text-white/70">{ex.join(", ")}</span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => updateQty(p.id, 0)}
+                          className="text-[10px] uppercase tracking-[0.22em] text-white/55 hover:text-white"
+                        >
+                          quitar
+                        </button>
+                      </div>
+
+                      {/* precios por item */}
+                      <div className="mt-3 space-y-1 text-[12px]">
+                        <div className="flex items-center justify-between text-white/70">
+                          <span>Base (unidad)</span>
+                          <span>{cop(it.baseUnit)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-white/70">
+                          <span>Extras (unidad)</span>
+                          <span>{cop(it.extrasUnit)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-white/80 font-black">
+                          <span>Subtotal item</span>
+                          <span>{cop(it.line)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-sm text-white/55">Aún no has agregado productos.</div>
+              )}
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-4 space-y-2">
+              <div className="flex items-center justify-between text-white/70 text-sm">
+                <span>Subtotal</span>
+                <span>{cop(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-white/70 text-sm">
+                <span>Envío</span>
+                <span>{cop(delivery)}</span>
+              </div>
+              <div className="flex items-center justify-between text-white font-black text-lg pt-2 border-t border-white/10">
+                <span>Total</span>
+                <span>{cop(total)}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!canSend}
+              className={[
+                "mt-4 w-full border border-white/20 py-3 font-black",
+                canSend ? "text-white hover:bg-white/[0.04]" : "text-white/35 cursor-not-allowed",
+              ].join(" ")}
+            >
+              Enviar WhatsApp
+            </button>
+
+            {!canSend ? (
+              <div className="mt-2 text-[11px] text-white/55">
+                Completa: productos + datos + domicilio (si aplica) + gomitas (referencia + 1 topping).
+              </div>
+            ) : null}
+          </aside>
+        </div>
       </div>
     </div>
   );
