@@ -24,9 +24,9 @@ export type OrderItem = {
   qty: number;
 
   // config por item
-  version: Version | null; // gomitas
-  size: Size | null;
-  toppingIds: string[]; // gomitas
+  version: Version | null; // aplica a gomitas
+  size: Size | null; // aplica a gomitas y frutafresh porSize
+  toppingIds: string[]; // aplica a TODO producto con toppingsIncludedMax > 0
   extrasQty: Record<string, number>;
 };
 
@@ -41,30 +41,42 @@ function versionLabel(version: Version | null) {
 }
 
 export function formatServiceLabel(service: Service) {
-  return service === "domicilio" ? "Domicilio" : service === "llevar" ? "Para llevar" : "En el local (Próximamente)";
+  return service === "domicilio"
+    ? "Domicilio"
+    : service === "llevar"
+    ? "Para llevar"
+    : "En el local (Próximamente)";
 }
 
 export function formatBarrioLine(service: Service, barrio: Barrio | null) {
   if (service !== "domicilio" || !barrio) return undefined;
-  return `Barrio: ${barrio.name} ${barrio.price == null ? "(Se confirma)" : `(${cop(barrio.price)})`}`;
+  return `📍 *Barrio:* ${barrio.name} ${
+    barrio.price == null ? "(Se confirma)" : `(${cop(barrio.price)})`
+  }`;
 }
 
 export function formatAddressLine(service: Service, address: string, reference: string) {
   if (service !== "domicilio") return undefined;
   const addr = address.trim();
   const ref = reference.trim();
-  if (!addr) return `Dirección: (pendiente)`;
-  return `Dirección: ${addr}${ref ? ` • Ref: ${ref}` : ""}`;
+  if (!addr) return `🏠 *Dirección:* (pendiente)`;
+  return `🏠 *Dirección:* ${addr}${ref ? `\n🧭 *Referencia:* ${ref}` : ""}`;
 }
 
 export function buildDetailLine(product: Product, version: Version | null, size: Size | null) {
   const parts: string[] = [];
 
+  // Gomitas: versión + tamaño
   if (product.category === "gomitas") {
     if (version) parts.push(versionLabel(version));
     if (size) parts.push(sizeLabel(size));
-  } else if (!isFixedPrice(product.prices) && size) {
-    parts.push(sizeLabel(size));
+  }
+
+  // FrutaFresh:
+  // - si es fijo: no agregamos tamaño
+  // - si es porSize: agregamos tamaño si existe
+  if (product.category === "frutafresh") {
+    if (!isFixedPrice(product.prices) && size) parts.push(sizeLabel(size));
   }
 
   return parts.join(" · ");
@@ -86,6 +98,21 @@ export function formatExtrasNames(extrasQty: Record<string, number>, extrasCatal
     parts.push(`${lookup.get(id) ?? id} x${q}`);
   }
   return parts.length ? parts.join(", ") : undefined;
+}
+
+function section(title: string) {
+  // separador “bonito” para WhatsApp
+  return `\n━━━━━━━━━━━━━━\n*${title}*\n━━━━━━━━━━━━━━`;
+}
+
+function pickServiceEmoji(service: Service) {
+  if (service === "domicilio") return "🛵";
+  if (service === "llevar") return "🥡";
+  return "🏠";
+}
+
+function pickCategoryEmoji(product: Product) {
+  return product.category === "gomitas" ? "🌶️" : "🍍";
 }
 
 export function waLink(whatsPhone: string, text: string) {
@@ -141,45 +168,68 @@ export function buildWhatsAppMessage(args: {
 
   const productLines = items.flatMap((it, idx) => {
     const detail = buildDetailLine(it.product, it.version, it.size);
-    const toppingsNames = it.product.category === "gomitas" ? formatToppingsNames(it.toppingIds, toppingsCatalog) : undefined;
+
+    // ✅ IMPORTANTE: toppings para cualquier producto que tenga toppingsIncludedMax > 0
+    const maxToppings = it.product.toppingsIncludedMax ?? 0;
+    const toppingsNames =
+      maxToppings > 0 ? formatToppingsNames(it.toppingIds, toppingsCatalog) : undefined;
+
     const extrasNames = formatExtrasNames(it.extrasQty, extrasCatalog);
 
-    return [
-      `${idx + 1}) X${it.qty} ${it.product.name}${detail ? " - " + detail : ""}`,
-      toppingsNames ? `   Toppings (incluidos): ${toppingsNames}` : null,
-      extrasNames ? `   Extras: ${extrasNames}` : null,
-    ].filter((x): x is string => x !== null && x !== undefined);
+    const head = `${idx + 1}) x${it.qty} ${pickCategoryEmoji(it.product)} *${it.product.name}*${
+      detail ? `\n   ▸ ${detail}` : ""
+    }`;
+
+    const toppingLine = toppingsNames
+      ? `   ▸ 🍬 *Toppings* (máx. ${maxToppings}): ${toppingsNames}`
+      : null;
+
+    const extrasLine = extrasNames ? `   ▸ ✨ *Extras:* ${extrasNames}` : null;
+
+    return [head, toppingLine, extrasLine].filter((x): x is string => x != null);
   });
 
+  const deliveryLine =
+    service === "domicilio" ? `Entrega: ${cop(delivery)}` : `Entrega: ${cop(0)}`;
+
+  const payEmoji = paymentMethod === "Transferencia" ? "🏦" : "💵";
+
   return [
-    `Vengo de ${origin}`,
-    `CODIGO DE VENTA: ${code}`,
-    ``,
-    `Tipo de servicio: ${serviceLabel}`,
-    ``,
-    `Nombre: ${name}`,
-    `Telefono: ${phone}`,
+    `👋 *Nuevo pedido*`,
+    `🧾 *Código:* ${code}`,
+    `🌐 *Origen:* ${origin}`,
+
+    section(`${pickServiceEmoji(service)} Servicio`),
+    `Tipo: *${serviceLabel}*`,
     barrioLine ?? null,
     addressLine ?? null,
-    ``,
-    `Productos`,
+
+    section("🙋 Datos del cliente"),
+    `Nombre: *${name}*`,
+    `Teléfono: *${phone}*`,
+
+    section("🛒 Productos"),
     ...productLines,
-    ``,
-    `Subtotal: ${cop(subtotal)}`,
-    `Entrega: ${cop(delivery)}`,
-    `Total: ${cop(total)}`,
-    ``,
-    `Pago`,
-    `Modalidad de pago: ${paymentMethod}`,
-    `Total a pagar: ${cop(total)}`,
-    `Nequi / Llave: ${NEQUI_PHONE}`,
-    ``,
-    `Si pagas por transferencia, envianos el comprobante para confirmar el pedido.`,
-    comments ? `` : null,
-    comments ? `Comentarios adicionales:` : null,
-    comments ? `${comments}` : null,
-    ``,
-    `Envíanos este mensaje ahora.`,
+
+    section("💰 Totales"),
+    `Subtotal: *${cop(subtotal)}*`,
+    deliveryLine,
+    `Total: *${cop(total)}*`,
+
+    section(`${payEmoji} Pago`),
+    `Método: *${paymentMethod}*`,
+    `Total a pagar: *${cop(total)}*`,
+    `Nequi / Llave: *${NEQUI_PHONE}*`,
+    paymentMethod === "Transferencia"
+      ? `📎 Si pagas por transferencia, envíanos el comprobante para confirmar el pedido.`
+      : `✅ Si pagas en efectivo, por favor ten el valor exacto si es posible.`,
+
+    comments?.trim()
+      ? section("📝 Comentarios") + `\n${comments.trim()}`
+      : null,
+
+    section("📤 Enviar"),
+    `Envíanos este mensaje ahora y confirmamos tu pedido 🙌`,
   ]
     .filter((line): line is string => line !== null && line !== undefined)
     .join("\n");

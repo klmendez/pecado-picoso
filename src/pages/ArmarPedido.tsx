@@ -73,6 +73,7 @@ export default function ArmarPedido() {
   const [phone, setPhone] = useState("");
   const [service, setService] = useState<Service>("llevar");
   const [barrio, setBarrio] = useState<Barrio | null>(null);
+  const [barrioQuery, setBarrioQuery] = useState("");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
@@ -83,8 +84,28 @@ export default function ArmarPedido() {
       setBarrio(null);
       setAddress("");
       setReference("");
+      setBarrioQuery("");
     }
   }, [service]);
+
+  const barriosFiltrados = useMemo(() => {
+    const q = barrioQuery.trim().toLowerCase();
+    if (!q) return BARRIOS;
+
+    return BARRIOS.filter((b) => {
+      const name = b.name.toLowerCase();
+      const id = b.id.toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [barrioQuery]);
+
+  useEffect(() => {
+    if (service !== "domicilio") return;
+    if (!barrio) return;
+    if (!barriosFiltrados.some((b) => b.id === barrio.id)) {
+      setBarrio(null);
+    }
+  }, [service, barrio, barriosFiltrados]);
 
   const selectedIds = useMemo(() => items.map((it) => it.product.id), [items]);
 
@@ -469,20 +490,78 @@ return (
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="text-[11px] font-black text-white/70">Barrio</label>
-                    <select
-                      value={barrio?.id ?? ""}
-                      onChange={(e) => setBarrio(BARRIOS.find((b) => b.id === e.target.value) ?? null)}
-                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                    >
-                      <option value="" disabled>
-                        Elige tu barrio…
-                      </option>
-                      {BARRIOS.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1 rounded-2xl border border-white/15 bg-white/[0.04] p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          value={barrioQuery}
+                          onChange={(e) => setBarrioQuery(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
+                          placeholder="Escribe para buscar (ej: Centro, Campanario…)"
+                        />
+
+                        <div className="flex shrink-0 gap-2">
+                          {barrio ? (
+                            <button
+                              type="button"
+                              onClick={() => setBarrio(null)}
+                              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 hover:border-white/40 hover:text-white"
+                            >
+                              Quitar selección
+                            </button>
+                          ) : null}
+                          {barrioQuery ? (
+                            <button
+                              type="button"
+                              onClick={() => setBarrioQuery("")}
+                              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 hover:border-white/40 hover:text-white"
+                            >
+                              Ver todos
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
+                        {barriosFiltrados.length ? (
+                          barriosFiltrados.map((b) => {
+                            const selected = barrio?.id === b.id;
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => setBarrio(b)}
+                                className={[
+                                  "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                                  selected
+                                    ? "border-white/40 bg-white/15 text-white"
+                                    : "border-white/10 bg-black/40 text-white/80 hover:border-white/25 hover:bg-white/10 hover:text-white",
+                                ].join(" ")}
+                              >
+                                <div className="flex items-baseline justify-between gap-3">
+                                  <span className="font-semibold tracking-wide">{b.name}</span>
+                                  <span className="text-xs text-white/60">
+                                    {b.price == null ? "Por confirmar" : cop(b.price)}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
+                            No encontramos ese barrio. Verifica la ortografía o selecciona "Otro barrio".
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/55">
+                        <span>
+                          {barriosFiltrados.length}/{BARRIOS.length} barrios disponibles
+                        </span>
+                        <span>
+                          {barrio ? `Seleccionado: ${barrio.name}` : "Sin barrio seleccionado"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="col-span-2 sm:col-span-1">
