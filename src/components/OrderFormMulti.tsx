@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { Barrio } from "../data/barrios";
 import { BARRIOS } from "../data/barrios";
 import type { Size, Version } from "../data/products";
@@ -90,6 +91,20 @@ export default function OrderFormMulti({
   onSend,
   nequiPhone,
 }: Props) {
+  // ✅ Buscador de barrios (si está vacío, muestra todos)
+  const [barrioQuery, setBarrioQuery] = useState("");
+
+  const barriosFiltrados = useMemo(() => {
+    const q = barrioQuery.trim().toLowerCase();
+    if (!q) return BARRIOS;
+
+    return BARRIOS.filter((b) => {
+      const name = b.name.toLowerCase();
+      const id = b.id.toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [barrioQuery]);
+
   return (
     <div className="flex-1 space-y-6">
       <section>
@@ -145,7 +160,9 @@ export default function OrderFormMulti({
                       onClick={() => updateItem(p.id, { version: "ahogada" as Version })}
                       className={[
                         "rounded-2xl border px-4 py-3 text-left",
-                        it.version === "ahogada" ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-950/20 hover:bg-white/5",
+                        it.version === "ahogada"
+                          ? "border-white/30 bg-white/10"
+                          : "border-neutral-800 bg-neutral-950/20 hover:bg-white/5",
                       ].join(" ")}
                     >
                       <div className="font-black">Ahogada</div>
@@ -157,7 +174,9 @@ export default function OrderFormMulti({
                       onClick={() => updateItem(p.id, { version: "picosa" as Version })}
                       className={[
                         "rounded-2xl border px-4 py-3 text-left",
-                        it.version === "picosa" ? "border-white/30 bg-white/10" : "border-neutral-800 bg-neutral-950/20 hover:bg-white/5",
+                        it.version === "picosa"
+                          ? "border-white/30 bg-white/10"
+                          : "border-neutral-800 bg-neutral-950/20 hover:bg-white/5",
                       ].join(" ")}
                     >
                       <div className="font-black">Picosa</div>
@@ -338,6 +357,16 @@ export default function OrderFormMulti({
       {service === "domicilio" ? (
         <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
           <div className="font-black">Barrio</div>
+
+          {/* ✅ Buscador */}
+          <input
+            value={barrioQuery}
+            onChange={(e) => setBarrioQuery(e.target.value)}
+            className={inputClass}
+            placeholder="Escribe para buscar (ej: Centro, Campanario...)"
+          />
+
+          {/* ✅ Select filtrado (si query vacío, salen todos) */}
           <select
             value={barrio?.id ?? ""}
             onChange={(e) => setBarrio(BARRIOS.find((b) => b.id === e.target.value) ?? null)}
@@ -346,12 +375,23 @@ export default function OrderFormMulti({
             <option value="" disabled>
               Elige tu barrio…
             </option>
-            {BARRIOS.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
+
+            {barriosFiltrados.length ? (
+              barriosFiltrados.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>
+                No encontramos ese barrio 😕
               </option>
-            ))}
+            )}
           </select>
+
+          <div className="text-[11px] text-white/50">
+            {barriosFiltrados.length}/{BARRIOS.length} barrios
+          </div>
 
           <div>
             <label className="text-sm font-bold text-white/80">Dirección</label>

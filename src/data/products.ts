@@ -6,6 +6,7 @@ import leyendaPicosaImg from "../assets/products/leyenda-picosa.png";
 import duoShotImg from "../assets/products/duo-shot.png";
 import mangoShotImg from "../assets/products/mango-shot.png";
 import pinasonImg from "../assets/products/pinason-picoso.png";
+import mamolokoImg from "../assets/products/mamoloko.jpeg";
 export type Category = "gomitas" | "frutafresh";
 export type Size = "pequeno" | "mediano" | "grande";
 export type Version = "ahogada" | "picosa";
@@ -33,6 +34,7 @@ type FrutafreshPriceMap = {
 
 type FrutafreshProduct = BaseProduct & {
   category: "frutafresh";
+  toppingsIncludedMax?: number;
   sizes?: Size[];
   prices: FrutafreshPriceMap;
 };
@@ -144,6 +146,8 @@ export const PRODUCTS: Product[] = [
     description: "Dos frutas en una sola presentación: piña y mango con chamoy y tajín.",
     badge: "Combo",
     image: duoShotImg,
+    toppingsIncludedMax: 2,
+
     sizes: ["pequeno", "mediano"],
     prices: {
       porSize: {
@@ -158,6 +162,7 @@ export const PRODUCTS: Product[] = [
     name: "Mango Shot",
     description: "Vaso de mango fresco con chamoy, gomitas y un toque picoso.",
     image: mangoShotImg,
+     toppingsIncludedMax: 2,
     sizes: ["pequeno", "mediano"],
     prices: {
       porSize: {
@@ -172,9 +177,24 @@ export const PRODUCTS: Product[] = [
     name: "Piñasón Picoso",
     description: "Rebanada de piña fresca bañada en chamoy artesanal y cubierta con tajín.",
     image: pinasonImg,
+     toppingsIncludedMax: 2,
     prices: {
       fijo: 8000,
     },
+
+    
   },
+
+  {
+    id: "mamoloko",
+    category: "frutafresh",
+    name: "Mamoloko",
+    description: "El sabor único del mamoncillo llevado al límite: refrescante, ácido y con picante ligero que engancha desde el primer bocado.",
+    image: mamolokoImg,
+     toppingsIncludedMax: 2,
+    prices: {
+      fijo: 14000,
+    },
+  }
 ];
 

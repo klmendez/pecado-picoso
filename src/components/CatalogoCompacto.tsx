@@ -1,32 +1,8 @@
-import type { Product } from "../data/products";
+import type { Product, Size } from "../data/products";
 import { PRODUCTS } from "../data/products";
 import { cop } from "../lib/format";
 
 type TabValue = "todos" | "gomitas" | "frutafresh";
-
-function getStartingPrice(product: Product): number | null {
-  if (product.category === "gomitas") {
-    const values: number[] = [];
-    Object.values(product.prices).forEach((versionPrices) => {
-      Object.values(versionPrices).forEach((price) => {
-        if (typeof price === "number" && price > 0) values.push(price);
-      });
-    });
-    return values.length ? Math.min(...values) : null;
-  }
-
-  const prices: any = product.prices;
-  if ("fijo" in prices && typeof prices.fijo === "number") return prices.fijo;
-
-  if (prices.porSize) {
-    const vals = Object.values(prices.porSize).filter(
-      (v: any) => typeof v === "number" && v > 0,
-    ) as number[];
-    return vals.length ? Math.min(...vals) : null;
-  }
-
-  return null;
-}
 
 function getGomitasMinByVersion(product: Product): { ahogada: number | null; picosa: number | null } {
   if (product.category !== "gomitas") return { ahogada: null, picosa: null };
@@ -42,6 +18,26 @@ function getGomitasMinByVersion(product: Product): { ahogada: number | null; pic
     ahogada: ahogadaVals.length ? Math.min(...ahogadaVals) : null,
     picosa: picosaVals.length ? Math.min(...picosaVals) : null,
   };
+}
+
+function getFrutaFreshPrices(product: Product): {
+  fijo: number | null;
+  pequeno: number | null;
+  mediano: number | null;
+} {
+  if (product.category !== "frutafresh") return { fijo: null, pequeno: null, mediano: null };
+
+  const prices: any = product.prices;
+
+  if ("fijo" in prices && typeof prices.fijo === "number" && prices.fijo > 0) {
+    return { fijo: prices.fijo, pequeno: null, mediano: null };
+  }
+
+  const porSize = prices.porSize as Partial<Record<Size, number>> | undefined;
+  const pequeno = typeof porSize?.pequeno === "number" && porSize.pequeno > 0 ? porSize.pequeno : null;
+  const mediano = typeof porSize?.mediano === "number" && porSize.mediano > 0 ? porSize.mediano : null;
+
+  return { fijo: null, pequeno, mediano };
 }
 
 type Props = {
@@ -63,8 +59,8 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
       {list.map((p) => {
         const active = isSelected(p.id);
 
-        const from = p.category === "frutafresh" ? getStartingPrice(p) : null;
         const gv = p.category === "gomitas" ? getGomitasMinByVersion(p) : null;
+        const ff = p.category === "frutafresh" ? getFrutaFreshPrices(p) : null;
 
         return (
           <button
@@ -95,7 +91,7 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    {/* ✅ Mobile: 2 líneas (no se come el nombre). Desktop: compacto */}
+                    {/* Mobile: 2 líneas. Desktop: 1 línea */}
                     <div className="text-sm font-black text-white leading-snug line-clamp-2 sm:line-clamp-1">
                       {p.name}
                     </div>
@@ -110,7 +106,9 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
                       ) : (
                         <>
                           FrutaFresh
-                          {from != null ? ` • Desde ${cop(from)}` : ""}
+                          {ff?.fijo != null ? ` • ${cop(ff.fijo)}` : ""}
+                          {ff?.fijo == null && ff?.pequeno != null ? ` • Pequeño ${cop(ff.pequeno)}` : ""}
+                          {ff?.fijo == null && ff?.mediano != null ? ` • Mediano ${cop(ff.mediano)}` : ""}
                         </>
                       )}
                     </div>

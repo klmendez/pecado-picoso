@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { Barrio } from "../data/barrios";
 import { BARRIOS } from "../data/barrios";
 import type { Product, Size } from "../data/products";
@@ -109,6 +110,20 @@ export default function OrderForm({
   onSend,
   nequiPhone,
 }: Props) {
+  // ✅ buscador de barrios (si está vacío, muestra todos)
+  const [barrioQuery, setBarrioQuery] = useState("");
+
+  const barriosFiltrados = useMemo(() => {
+    const q = barrioQuery.trim().toLowerCase();
+    if (!q) return BARRIOS;
+
+    return BARRIOS.filter((b) => {
+      const name = b.name.toLowerCase();
+      const id = b.id.toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [barrioQuery]);
+
   return (
     <div className="flex-1 space-y-6">
       {/* Intro */}
@@ -303,6 +318,15 @@ export default function OrderForm({
         <section className="space-y-3">
           <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
             <div className="font-black">Barrio</div>
+
+            {/* ✅ input para buscar, pero si está vacío muestra todos */}
+            <input
+              value={barrioQuery}
+              onChange={(e) => setBarrioQuery(e.target.value)}
+              className={inputClass}
+              placeholder="Escribe para buscar (ej: Centro, Campanario...)"
+            />
+
             <select
               value={barrio?.id ?? ""}
               onChange={(e) => setBarrio(BARRIOS.find((b) => b.id === e.target.value) ?? null)}
@@ -311,12 +335,23 @@ export default function OrderForm({
               <option value="" disabled>
                 Elige tu barrio…
               </option>
-              {BARRIOS.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
+
+              {barriosFiltrados.length ? (
+                barriosFiltrados.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.price == null ? "(Por confirmar)" : `(${cop(b.price)})`}
+                  </option>
+                ))
+              ) : (
+                <option value="" disabled>
+                  No encontramos ese barrio 😕
                 </option>
-              ))}
+              )}
             </select>
+
+            <div className="text-[11px] text-neutral-500">
+              {barriosFiltrados.length}/{BARRIOS.length} barrios
+            </div>
 
             <div>
               <label className="text-sm font-bold text-neutral-200">Dirección</label>

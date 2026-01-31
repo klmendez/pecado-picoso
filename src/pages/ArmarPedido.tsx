@@ -37,9 +37,15 @@ function defaultSize(product: Product): Size | null {
   return sizes[0] ?? null;
 }
 
+/**
+ * Reglas de toppings:
+ * - Gomitas: usa product.toppingsIncludedMax (y mínimo 1 si max > 0)
+ * - FrutaFresh: máximo 2 toppings (opcional, no obligatorio)
+ */
 function maxToppingsFor(product: Product): number {
-  if (product.category !== "gomitas") return 0;
-  return Math.max(0, product.toppingsIncludedMax ?? 0);
+  if (product.category === "gomitas") return Math.max(0, product.toppingsIncludedMax ?? 0);
+  if (product.category === "frutafresh") return 2;
+  return 0;
 }
 
 function labelSize(size: Size) {
@@ -134,15 +140,27 @@ export default function ArmarPedido() {
   // ===== validaciones =====
   const itemsOk = items.length > 0;
 
-  const gomitasOk = useMemo(() => {
+  /**
+   * - Gomitas: referencia obligatoria + (si max > 0) mínimo 1 topping y no exceder max
+   * - FrutaFresh: toppings opcional, pero NO exceder 2
+   */
+  const itemsConfigOk = useMemo(() => {
     for (const it of items) {
-      if (it.product.category !== "gomitas") continue;
-      if (!it.version) return false;
+      const p = it.product;
+      const max = maxToppingsFor(p);
 
-      const max = maxToppingsFor(it.product);
-      if (max > 0) {
-        if (it.toppingIds.length < 1) return false;
-        if (it.toppingIds.length > max) return false;
+      if (p.category === "gomitas") {
+        if (!it.version) return false;
+
+        if (max > 0) {
+          if (it.toppingIds.length < 1) return false;
+          if (it.toppingIds.length > max) return false;
+        }
+        continue;
+      }
+
+      if (p.category === "frutafresh") {
+        if (it.toppingIds.length > max) return false; // max = 2
       }
     }
     return true;
@@ -150,7 +168,7 @@ export default function ArmarPedido() {
 
   const deliveryOk = service !== "local" && (service !== "domicilio" || (barrio && address.trim()));
 
-  const canSend = Boolean(itemsOk && gomitasOk && subtotal > 0 && name.trim() && phone.trim() && deliveryOk);
+  const canSend = Boolean(itemsOk && itemsConfigOk && subtotal > 0 && name.trim() && phone.trim() && deliveryOk);
 
   const handleSend = () => {
     if (!canSend) return;
@@ -179,9 +197,9 @@ export default function ArmarPedido() {
 
     window.open(waLink(WHATSAPP_DESTINATION, message), "_blank");
   };
+return (
+  <div className="bg-neutral-950 text-white pt-24 lg:pt-28">
 
-  return (
-    <div className="bg-neutral-950 text-white">
       {/* Header centrado */}
       <header className="px-4 pt-8 pb-4">
         <div className="mx-auto max-w-6xl text-center">
@@ -217,7 +235,7 @@ export default function ArmarPedido() {
                 <div>
                   <div className="text-sm font-black">2) Ajustar</div>
                   <div className="text-xs text-white/55">
-                    Cantidad, tamaño, (gomitas: referencia y toppings), extras.
+                    Cantidad, tamaño, (gomitas: referencia), toppings (gomitas y frutafresh), extras.
                   </div>
                 </div>
 
@@ -225,6 +243,7 @@ export default function ArmarPedido() {
                   {items.map((it) => {
                     const p = it.product;
                     const isGomitas = p.category === "gomitas";
+                    const canHaveToppings = p.category === "gomitas" || p.category === "frutafresh";
                     const sizes = getAvailableSizes(p);
                     const maxT = maxToppingsFor(p);
 
@@ -280,54 +299,64 @@ export default function ArmarPedido() {
                           )}
                         </div>
 
-                        {/* gomitas */}
-                        {isGomitas ? (
+                        {/* referencias (solo gomitas) + toppings (gomitas y frutafresh) */}
+                        {isGomitas || canHaveToppings ? (
                           <div className="mt-5 space-y-5">
-                            <Referencias
-                              value={it.version as any}
-                              onChange={(v) => updateItem(p.id, { version: v as Version })}
-                              small
-                              title="Referencia"
-                              subtitle="Selecciona una"
-                            />
+                            {/* Referencias SOLO gomitas */}
+                            {isGomitas ? (
+                              <Referencias
+                                value={it.version as any}
+                                onChange={(v) => updateItem(p.id, { version: v as Version })}
+                                small
+                                title="Referencia"
+                                subtitle="Selecciona una"
+                              />
+                            ) : null}
 
-                            <div>
-                              <div className="flex items-center justify-between">
-                                <div className="text-[11px] font-black text-white/70">Toppings</div>
-                                <div className="text-[11px] text-white/55">
-                                  {it.toppingIds.length}/{maxT}
+                            {/* Toppings (gomitas y frutafresh) */}
+                            {canHaveToppings ? (
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <div className="text-[11px] font-black text-white/70">Toppings</div>
+                                  <div className="text-[11px] text-white/55">
+                                    {it.toppingIds.length}/{maxT}
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="mt-2 grid grid-cols-2 gap-2">
-                                {TOPPINGS.map((t) => {
-                                  const active = it.toppingIds.includes(t.id);
-                                  return (
-                                    <button
-                                      key={t.id}
-                                      type="button"
-                                      onClick={() => {
-                                        const prev = it.toppingIds;
-                                        const next = active
-                                          ? prev.filter((x) => x !== t.id)
-                                          : maxT > 0 && prev.length >= maxT
-                                            ? prev
-                                            : [...prev, t.id];
-                                        updateItem(p.id, { toppingIds: next });
-                                      }}
-                                      className={[
-                                        "border border-white/10 px-3 py-2 text-left text-[11px] font-black",
-                                        active ? "text-white" : "text-white/55 hover:text-white",
-                                      ].join(" ")}
-                                    >
-                                      {t.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                  {TOPPINGS.map((t) => {
+                                    const active = it.toppingIds.includes(t.id);
+                                    return (
+                                      <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const prev = it.toppingIds;
+                                          const next = active
+                                            ? prev.filter((x) => x !== t.id)
+                                            : maxT > 0 && prev.length >= maxT
+                                              ? prev
+                                              : [...prev, t.id];
+                                          updateItem(p.id, { toppingIds: next });
+                                        }}
+                                        className={[
+                                          "border border-white/10 px-3 py-2 text-left text-[11px] font-black",
+                                          active ? "text-white" : "text-white/55 hover:text-white",
+                                        ].join(" ")}
+                                      >
+                                        {t.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
 
-                              <div className="mt-2 text-[10px] text-white/40">Mínimo 1 topping en gomitas.</div>
-                            </div>
+                                {isGomitas ? (
+                                  <div className="mt-2 text-[10px] text-white/40">Mínimo 1 topping en gomitas.</div>
+                                ) : (
+                                  <div className="mt-2 text-[10px] text-white/40">Hasta 2 toppings en FrutaFresh.</div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
 
@@ -377,9 +406,9 @@ export default function ArmarPedido() {
                   })}
                 </div>
 
-                {!gomitasOk ? (
+                {!itemsConfigOk ? (
                   <div className="mt-4 text-xs text-white/60">
-                    Falta configurar alguna gomita: referencia y mínimo 1 topping.
+                    Falta configurar: gomitas (referencia + mínimo 1 topping) o hay toppings excedidos.
                   </div>
                 ) : null}
               </section>
@@ -538,7 +567,7 @@ export default function ArmarPedido() {
                 pricedItems.map((it) => {
                   const p = it.product;
                   const isGomitas = p.category === "gomitas";
-                  const tops = isGomitas ? toppingsNames(it.toppingIds) : [];
+                  const tops = it.toppingIds.length ? toppingsNames(it.toppingIds) : [];
                   const ex = extrasLine(it.extrasQty);
 
                   return (
@@ -556,11 +585,12 @@ export default function ArmarPedido() {
                               <span className="font-black text-white/75">
                                 {it.version ? it.version : "Pendiente"}
                               </span>
-                              {tops.length ? (
-                                <div className="mt-1">
-                                  Toppings: <span className="text-white/70">{tops.join(", ")}</span>
-                                </div>
-                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {tops.length ? (
+                            <div className="mt-1 text-[11px] text-white/55">
+                              Toppings: <span className="text-white/70">{tops.join(", ")}</span>
                             </div>
                           ) : null}
 
