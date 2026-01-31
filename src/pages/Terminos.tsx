@@ -2,18 +2,35 @@ import { INSTAGRAM } from "../data/constants";
 
 export default function Terminos() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <h2 className="text-3xl font-black">Términos y condiciones</h2>
+    <div className="mx-auto max-w-3xl px-4 py-12">
+      <header className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">
+          Términos y condiciones
+        </h1>
+        <div className="mt-2 h-[2px] w-16 bg-white/20" />
+      </header>
 
-      <div className="mt-6 space-y-4 text-neutral-200">
-        <p>• Nuestras gomitas son irresistiblemente deliciosas. Puedes armarlas como tú desees.</p>
-        <p>• Manejamos domicilios con Domipop; el costo lo asume el cliente o puedes recoger.</p>
-        <p className="font-bold">• Producto que no esté cancelado en su totalidad no será despachado.</p>
+      <section className="space-y-5 text-sm md:text-base text-white/80 leading-relaxed">
         <p>
-          • Síguenos en redes: <span className="font-bold">{INSTAGRAM}</span>. Si te gustaron, repósteanos y etiquétenos en tu history
-          para sorpresa 😈🔥
+          Nuestras gomitas están elaboradas para que disfrutes una experiencia personalizada.
+          Puedes armar tu pedido según tus gustos, combinando referencias, toppings y extras disponibles.
         </p>
-      </div>
+
+        <p>
+          Los domicilios se realizan a través de <span className="font-semibold text-white">Domipop</span>.
+          El costo del envío será asumido por el cliente, o bien puedes optar por recoger tu pedido.
+        </p>
+
+        <p className="font-semibold text-white">
+          Todo pedido debe estar cancelado en su totalidad para poder ser preparado y despachado.
+        </p>
+
+        <p>
+          Síguenos en Instagram:{" "}
+          <span className="font-semibold text-white">{INSTAGRAM}</span>.  
+          Si te gustó tu pedido, compártelo y etiquétanos en tus historias.
+        </p>
+      </section>
     </div>
   );
 }

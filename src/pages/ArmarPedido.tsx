@@ -1,3 +1,4 @@
+// src/pages/ArmarPedido.tsx
 import { useEffect, useMemo, useState } from "react";
 import type { Barrio } from "../data/barrios";
 import { BARRIOS } from "../data/barrios";
@@ -7,13 +8,22 @@ import { TOPPINGS } from "../data/toppings";
 import { EXTRAS } from "../data/extras";
 import { cop } from "../lib/format";
 import { getBasePrice, extrasTotal, deliveryCost } from "../lib/pricing";
-import { buildCode, buildWhatsAppMessage, waLink, type PaymentMethod, type Service, type OrderItem } from "../lib/whatsapp";
+import {
+  buildCode,
+  buildWhatsAppMessage,
+  waLink,
+  type PaymentMethod,
+  type Service,
+  type OrderItem,
+} from "../lib/whatsapp";
 import { NEQUI_PHONE } from "../data/constants";
 
 import CatalogoCompacto from "../components/CatalogoCompacto";
+import CategoryTabs from "../components/CategoryTabs";
 import Referencias from "../components/Referencias";
 
 const WHATSAPP_DESTINATION = "573135707125";
+type TabValue = "todos" | "gomitas" | "frutafresh";
 
 function getAvailableSizes(product: Product): Size[] {
   if (product.category === "gomitas") return product.sizes;
@@ -49,6 +59,8 @@ function extrasLine(extrasQty: Record<string, number>) {
 }
 
 export default function ArmarPedido() {
+  const [category, setCategory] = useState<TabValue>("todos");
+
   const [items, setItems] = useState<OrderItem[]>([]);
 
   const [name, setName] = useState("");
@@ -104,21 +116,14 @@ export default function ArmarPedido() {
     );
   };
 
-  // ====== precios por item (para resumen completo) ======
+  // ===== precios por item (para resumen completo) =====
   const pricedItems = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(it.product, it.product.category === "gomitas" ? it.version : null, it.size);
       const extrasUnit = extrasTotal(it.extrasQty, EXTRAS);
       const unit = baseUnit + extrasUnit;
       const line = unit * it.qty;
-
-      return {
-        ...it,
-        baseUnit,
-        extrasUnit,
-        unit,
-        line,
-      };
+      return { ...it, baseUnit, extrasUnit, unit, line };
     });
   }, [items]);
 
@@ -126,7 +131,7 @@ export default function ArmarPedido() {
   const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
   const total = subtotal + delivery;
 
-  // ====== validaciones ======
+  // ===== validaciones =====
   const itemsOk = items.length > 0;
 
   const gomitasOk = useMemo(() => {
@@ -177,46 +182,46 @@ export default function ArmarPedido() {
 
   return (
     <div className="bg-neutral-950 text-white">
-      {/* Header (plano) */}
+      {/* Header centrado */}
       <header className="px-4 pt-8 pb-4">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-6xl text-center">
           <div className="text-xs uppercase tracking-[0.35em] text-white/50">Armar pedido</div>
-          <div className="mt-2 flex items-end justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black">Elige y envía</h1>
-            <div className="text-xs text-white/50">{items.length} seleccionados</div>
-          </div>
+          <h1 className="mt-2 text-2xl sm:text-3xl font-black">Elige y envía</h1>
+          <div className="mt-1 text-xs text-white/55">{items.length} seleccionados</div>
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-4 pb-14">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* LEFT */}
-          <main className="space-y-8">
+          <main className="space-y-10">
             {/* 1) Elegir productos */}
             <section>
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-sm font-black">1) Elegir productos</div>
-                  <div className="text-xs text-white/55">Toca para agregar o quitar.</div>
-                </div>
+              <div>
+                <div className="text-sm font-black">1) Elegir productos</div>
+                <div className="text-xs text-white/55">Toca para agregar o quitar.</div>
               </div>
 
               <div className="mt-4">
-                <CatalogoCompacto selectedIds={selectedIds} onToggle={toggleProduct} />
+                <CategoryTabs value={category} onChange={setCategory} />
+              </div>
+
+              <div className="mt-4">
+                <CatalogoCompacto selectedIds={selectedIds} onToggle={toggleProduct} filter={category} />
               </div>
             </section>
 
-            {/* 2) Ajustar por producto */}
+            {/* 2) Ajustar */}
             {items.length ? (
               <section>
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-black">2) Ajustar</div>
-                    <div className="text-xs text-white/55">Cantidad, tamaño, (gomitas: referencia y toppings), extras.</div>
+                <div>
+                  <div className="text-sm font-black">2) Ajustar</div>
+                  <div className="text-xs text-white/55">
+                    Cantidad, tamaño, (gomitas: referencia y toppings), extras.
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-6">
+                <div className="mt-5 space-y-7">
                   {items.map((it) => {
                     const p = it.product;
                     const isGomitas = p.category === "gomitas";
@@ -251,7 +256,7 @@ export default function ArmarPedido() {
                           </div>
                         </div>
 
-                        {/* size */}
+                        {/* tamaño */}
                         <div className="mt-3">
                           <div className="text-[11px] font-black text-white/70">Tamaño</div>
                           {sizes.length ? (
@@ -275,9 +280,9 @@ export default function ArmarPedido() {
                           )}
                         </div>
 
-                        {/* referencias + toppings */}
+                        {/* gomitas */}
                         {isGomitas ? (
-                          <div className="mt-4 space-y-4">
+                          <div className="mt-5 space-y-5">
                             <Referencias
                               value={it.version as any}
                               onChange={(v) => updateItem(p.id, { version: v as Version })}
@@ -327,7 +332,7 @@ export default function ArmarPedido() {
                         ) : null}
 
                         {/* extras */}
-                        <div className="mt-4">
+                        <div className="mt-5">
                           <div className="text-[11px] font-black text-white/70">Extras</div>
                           <div className="mt-2 grid grid-cols-2 gap-2">
                             {EXTRAS.map((e) => {
@@ -380,7 +385,7 @@ export default function ArmarPedido() {
               </section>
             ) : null}
 
-            {/* 3) Datos / servicio / pago */}
+            {/* 3) Datos y envío */}
             <section className="border-t border-white/10 pt-6">
               <div className="text-sm font-black">3) Datos y envío</div>
 
@@ -545,11 +550,12 @@ export default function ArmarPedido() {
                             Cantidad: <span className="font-black text-white/75">x{it.qty}</span>
                           </div>
 
-                          {/* detalle gomitas */}
                           {isGomitas ? (
                             <div className="mt-1 text-[11px] text-white/55">
                               Referencia:{" "}
-                              <span className="font-black text-white/75">{it.version ? it.version : "Pendiente"}</span>
+                              <span className="font-black text-white/75">
+                                {it.version ? it.version : "Pendiente"}
+                              </span>
                               {tops.length ? (
                                 <div className="mt-1">
                                   Toppings: <span className="text-white/70">{tops.join(", ")}</span>
@@ -558,7 +564,6 @@ export default function ArmarPedido() {
                             </div>
                           ) : null}
 
-                          {/* extras */}
                           {ex.length ? (
                             <div className="mt-1 text-[11px] text-white/55">
                               Extras: <span className="text-white/70">{ex.join(", ")}</span>
@@ -575,7 +580,6 @@ export default function ArmarPedido() {
                         </button>
                       </div>
 
-                      {/* precios por item */}
                       <div className="mt-3 space-y-1 text-[12px]">
                         <div className="flex items-center justify-between text-white/70">
                           <span>Base (unidad)</span>

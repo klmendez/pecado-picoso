@@ -2,6 +2,8 @@ import type { Product } from "../data/products";
 import { PRODUCTS } from "../data/products";
 import { cop } from "../lib/format";
 
+type TabValue = "todos" | "gomitas" | "frutafresh";
+
 function getStartingPrice(product: Product): number | null {
   if (product.category === "gomitas") {
     const values: number[] = [];
@@ -27,14 +29,20 @@ function getStartingPrice(product: Product): number | null {
 type Props = {
   selectedIds: string[];
   onToggle: (p: Product) => void;
+  filter: TabValue; // ✅ nuevo
 };
 
-export default function CatalogoCompacto({ selectedIds, onToggle }: Props) {
+export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Props) {
   const isSelected = (id: string) => selectedIds.includes(id);
+
+  const list = PRODUCTS.filter((p) => {
+    if (filter === "todos") return true;
+    return p.category === filter;
+  });
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {PRODUCTS.map((p) => {
+      {list.map((p) => {
         const active = isSelected(p.id);
         const from = getStartingPrice(p);
 
@@ -50,8 +58,8 @@ export default function CatalogoCompacto({ selectedIds, onToggle }: Props) {
             ].join(" ")}
           >
             <div className="flex gap-3">
-              {/* Imagen */}
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white/5">
+              {/* Imagen (más grande) */}
+              <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden bg-white/5">
                 {p.image ? (
                   <img
                     src={p.image}
@@ -64,7 +72,6 @@ export default function CatalogoCompacto({ selectedIds, onToggle }: Props) {
                 )}
               </div>
 
-              {/* Texto */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
