@@ -1,8 +1,7 @@
 import type { Product, Size } from "../data/products";
 import { PRODUCTS } from "../data/products";
 import { cop } from "../lib/format";
-
-type TabValue = "todos" | "gomitas" | "frutafresh";
+import type { CategoryTabValue } from "./CategoryTabs";
 
 function getGomitasMinByVersion(product: Product): { ahogada: number | null; picosa: number | null } {
   if (product.category !== "gomitas") return { ahogada: null, picosa: null };
@@ -43,7 +42,7 @@ function getFrutaFreshPrices(product: Product): {
 type Props = {
   selectedIds: string[];
   onToggle: (p: Product) => void;
-  filter: TabValue;
+  filter: CategoryTabValue;
 };
 
 export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Props) {

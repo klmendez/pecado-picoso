@@ -1,751 +1,581 @@
 // src/pages/ArmarPedido.tsx
-import { useEffect, useMemo, useState } from "react";
-import type { Barrio } from "../data/barrios";
-import { BARRIOS } from "../data/barrios";
-import type { Product, Size, Version } from "../data/products";
-import { isFixedPrice } from "../data/products";
-import { TOPPINGS } from "../data/toppings";
-import { EXTRAS } from "../data/extras";
-import { cop } from "../lib/format";
-import { getBasePrice, extrasTotal, deliveryCost } from "../lib/pricing";
-import {
-  buildCode,
-  buildWhatsAppMessage,
-  waLink,
-  type PaymentMethod,
-  type Service,
-  type OrderItem,
-} from "../lib/whatsapp";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Product } from "../data/products";
 import { NEQUI_PHONE } from "../data/constants";
+import { type PaymentMethod, type Service } from "../lib/whatsapp";
 
-import CatalogoCompacto from "../components/CatalogoCompacto";
-import CategoryTabs from "../components/CategoryTabs";
-import Referencias from "../components/Referencias";
+import type { CategoryTabValue } from "../components/CategoryTabs";
+import ArmarPedidoHeader from "../components/armar-pedido/ArmarPedidoHeader";
+import ProductSelectionSection from "../components/armar-pedido/ProductSelectionSection";
+import ProductConfigSection from "../components/armar-pedido/ProductConfigSection";
+import CustomerInfoSection from "../components/armar-pedido/CustomerInfoSection";
+import OrderPricingSidebar from "../components/armar-pedido/OrderPricingSidebar";
+import Stepper, { type Step } from "../components/armar-pedido/Stepper";
+import { useOrderItems } from "../hooks/useOrderItems";
+import { useBarrioSelection } from "../hooks/useBarrioSelection";
+import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
+import { useOrderMessage } from "../hooks/useOrderMessage";
+
+const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
+type StepId = (typeof STEP_SEQUENCE)[number];
 
 const WHATSAPP_DESTINATION = "573178371144";
-type TabValue = "todos" | "gomitas" | "frutafresh";
 
-function getAvailableSizes(product: Product): Size[] {
-  if (product.category === "gomitas") return product.sizes;
-  if (isFixedPrice(product.prices)) return product.sizes ?? [];
-  const entries = Object.entries(product.prices.porSize ?? {}) as Array<[Size, number | undefined]>;
-  return entries.filter(([, v]) => typeof v === "number" && v > 0).map(([s]) => s);
-}
-
-function defaultSize(product: Product): Size | null {
-  const sizes = getAvailableSizes(product);
-  return sizes[0] ?? null;
-}
-
-/**
- * Reglas de toppings:
- * - Gomitas: usa product.toppingsIncludedMax (y mínimo 1 si max > 0)
- * - FrutaFresh: máximo 2 toppings (opcional, no obligatorio)
- */
-function maxToppingsFor(product: Product): number {
-  if (product.category === "gomitas") return Math.max(0, product.toppingsIncludedMax ?? 0);
-  if (product.category === "frutafresh") return 2;
-  return 0;
-}
-
-function labelSize(size: Size) {
-  return size === "pequeno" ? "Pequeño" : size === "mediano" ? "Mediano" : "Grande";
-}
-
-function toppingsNames(ids: string[]) {
-  const m = new Map(TOPPINGS.map((t) => [t.id, t.name]));
-  return ids.map((id) => m.get(id) ?? id);
-}
-
-function extrasLine(extrasQty: Record<string, number>) {
-  return EXTRAS.flatMap((e) => {
-    const qty = extrasQty[e.id] ?? 0;
-    return qty > 0 ? [`${e.name} x${qty}`] : [];
-  });
-}
+const STEP_META: Record<StepId, { title: string; description: string }> = {
+  productos: { title: "Productos", description: "Elige y agrega" },
+  configuracion: { title: "Configura", description: "Ajusta tus selecciones" },
+  datos: { title: "Datos", description: "Contacto y pago" },
+  resumen: { title: "Resumen", description: "Revisa y envía" },
+};
 
 export default function ArmarPedido() {
-  const [category, setCategory] = useState<TabValue>("todos");
-
-  const [items, setItems] = useState<OrderItem[]>([]);
-
+  const [category, setCategory] = useState<CategoryTabValue>("todos");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [service, setService] = useState<Service>("llevar");
-  const [barrio, setBarrio] = useState<Barrio | null>(null);
-  const [barrioQuery, setBarrioQuery] = useState("");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
   const [comments, setComments] = useState("");
 
+  const { items, selectedIds, toggleProduct, updateItem, updateQty } = useOrderItems();
+  const {
+    barrio,
+    setBarrio,
+    barrioQuery,
+    setBarrioQuery,
+    filteredBarrios,
+    deliverySectionEnabled,
+    totalBarrios,
+  } = useBarrioSelection(service);
+
+  const { pricedItems, subtotal, delivery, total, checklist, canSend, sendDisabledHint, validation } =
+    useOrderPricingValidation({ items, service, barrio, address, name, phone });
+
+  const { openWhatsApp } = useOrderMessage({
+    name,
+    phone,
+    service,
+    barrio,
+    address,
+    reference,
+    paymentMethod,
+    comments,
+    items,
+    subtotal,
+    delivery,
+    total,
+    destination: WHATSAPP_DESTINATION,
+  });
+
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const summaryOpenRef = useRef(false);
+  const didMountRef = useRef(false);
+
+  const currentStepId = STEP_SEQUENCE[stepIndex];
+
+  const handleToggleProduct = (product: Product) => {
+    const alreadySelected = selectedIds.includes(product.id);
+    toggleProduct(product);
+    if (alreadySelected && activeProductId === product.id) {
+      setActiveProductId(null);
+    }
+  };
+
+  const handleQtyChange = (productId: string, qty: number) => {
+    updateQty(productId, qty);
+    if (qty <= 0 && activeProductId === productId) {
+      setActiveProductId(null);
+    }
+  };
+
   useEffect(() => {
-    if (service !== "domicilio") {
-      setBarrio(null);
-      setAddress("");
-      setReference("");
-      setBarrioQuery("");
+    if (!items.length) {
+      setActiveProductId(null);
+      return;
     }
-  }, [service]);
 
-  const barriosFiltrados = useMemo(() => {
-    const q = barrioQuery.trim().toLowerCase();
-    if (!q) return BARRIOS;
+    if (activeProductId && items.some((it) => it.product.id === activeProductId)) {
+      return;
+    }
 
-    return BARRIOS.filter((b) => {
-      const name = b.name.toLowerCase();
-      const id = b.id.toLowerCase();
-      return name.includes(q) || id.includes(q);
-    });
-  }, [barrioQuery]);
+    if (activeProductId && !items.some((it) => it.product.id === activeProductId)) {
+      setActiveProductId(null);
+    }
+  }, [items, activeProductId]);
+
+  const { itemsOk, itemsConfigOk, customerOk, deliveryOk } = validation;
 
   useEffect(() => {
-    if (service !== "domicilio") return;
-    if (!barrio) return;
-    if (!barriosFiltrados.some((b) => b.id === barrio.id)) {
-      setBarrio(null);
+    if (currentStepId === "configuracion" && !itemsOk) {
+      setStepIndex(0);
+      return;
     }
-  }, [service, barrio, barriosFiltrados]);
 
-  const selectedIds = useMemo(() => items.map((it) => it.product.id), [items]);
-
-  const toggleProduct = (p: Product) => {
-    setItems((prev) => {
-      const idx = prev.findIndex((it) => it.product.id === p.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next.splice(idx, 1);
-        return next;
+    if (currentStepId === "datos") {
+      if (!itemsOk) {
+        setStepIndex(0);
+        return;
       }
-      return [
-        ...prev,
-        {
-          product: p,
-          qty: 1,
-          version: p.category === "gomitas" ? null : null,
-          size: defaultSize(p),
-          toppingIds: [],
-          extrasQty: {},
-        },
-      ];
-    });
-  };
-
-  const updateItem = (productId: string, patch: Partial<OrderItem>) => {
-    setItems((prev) => prev.map((it) => (it.product.id === productId ? { ...it, ...patch } : it)));
-  };
-
-  const updateQty = (productId: string, qty: number) => {
-    setItems((prev) =>
-      prev
-        .map((it) => (it.product.id === productId ? { ...it, qty } : it))
-        .filter((it) => it.qty > 0),
-    );
-  };
-
-  // ===== precios por item (para resumen completo) =====
-  const pricedItems = useMemo(() => {
-    return items.map((it) => {
-      const baseUnit = getBasePrice(it.product, it.product.category === "gomitas" ? it.version : null, it.size);
-      const extrasUnit = extrasTotal(it.extrasQty, EXTRAS);
-      const unit = baseUnit + extrasUnit;
-      const line = unit * it.qty;
-      return { ...it, baseUnit, extrasUnit, unit, line };
-    });
-  }, [items]);
-
-  const subtotal = useMemo(() => pricedItems.reduce((sum, it) => sum + it.line, 0), [pricedItems]);
-  const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
-  const total = subtotal + delivery;
-
-  // ===== validaciones =====
-  const itemsOk = items.length > 0;
-
-  /**
-   * - Gomitas: referencia obligatoria + (si max > 0) mínimo 1 topping y no exceder max
-   * - FrutaFresh: toppings opcional, pero NO exceder 2
-   */
-  const itemsConfigOk = useMemo(() => {
-    for (const it of items) {
-      const p = it.product;
-      const max = maxToppingsFor(p);
-
-      if (p.category === "gomitas") {
-        if (!it.version) return false;
-
-        if (max > 0) {
-          if (it.toppingIds.length < 1) return false;
-          if (it.toppingIds.length > max) return false;
-        }
-        continue;
-      }
-
-      if (p.category === "frutafresh") {
-        if (it.toppingIds.length > max) return false; // max = 2
+      if (!itemsConfigOk) {
+        setStepIndex(1);
+        return;
       }
     }
-    return true;
-  }, [items]);
 
-  const deliveryOk = service !== "local" && (service !== "domicilio" || (barrio && address.trim()));
-
-  const canSend = Boolean(itemsOk && itemsConfigOk && subtotal > 0 && name.trim() && phone.trim() && deliveryOk);
+    if (currentStepId === "resumen") {
+      if (!itemsOk) {
+        setStepIndex(0);
+        return;
+      }
+      if (!itemsConfigOk) {
+        setStepIndex(1);
+        return;
+      }
+      if (!(customerOk && deliveryOk)) {
+        setStepIndex(2);
+      }
+    }
+  }, [currentStepId, itemsOk, itemsConfigOk, customerOk, deliveryOk]);
 
   const handleSend = () => {
     if (!canSend) return;
-
-    const origin = window.location.origin;
-    const code = buildCode();
-
-    const message = buildWhatsAppMessage({
-      origin,
-      code,
-      name: name.trim(),
-      phone: phone.trim(),
-      service,
-      barrio,
-      address,
-      reference,
-      items,
-      subtotal,
-      delivery,
-      total,
-      toppingsCatalog: TOPPINGS,
-      extrasCatalog: EXTRAS,
-      paymentMethod,
-      comments: comments.trim() || undefined,
-    });
-
-    window.open(waLink(WHATSAPP_DESTINATION, message), "_blank");
+    openWhatsApp();
   };
-return (
-  <div className="bg-neutral-950 text-white pt-24 lg:pt-28">
 
-      {/* Header centrado */}
-      <header className="px-4 pt-8 pb-4">
-        <div className="mx-auto max-w-6xl text-center">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/50">Armar pedido</div>
-          <h1 className="mt-2 text-2xl sm:text-3xl font-black">Elige y envía</h1>
-          <div className="mt-1 text-xs text-white/55">{items.length} seleccionados</div>
+  const canAdvanceFromStep = (id: StepId) => {
+    switch (id) {
+      case "productos":
+        return items.length > 0;
+      case "configuracion":
+        return itemsConfigOk;
+      case "datos":
+        return customerOk && deliveryOk;
+      default:
+        return false;
+    }
+  };
+
+  const goToNextStep = () => {
+    if (stepIndex >= STEP_SEQUENCE.length - 1) return;
+    if (!canAdvanceFromStep(currentStepId)) return;
+    setStepIndex((prev) => Math.min(prev + 1, STEP_SEQUENCE.length - 1));
+  };
+
+  const goToPreviousStep = () => {
+    setStepIndex((prev) => Math.max(prev - 1, 0));
+  };
+
+  const handleSelectStep = (id: string) => {
+    const targetIndex = STEP_SEQUENCE.indexOf(id as StepId);
+    if (targetIndex === -1) return;
+    if (targetIndex < stepIndex) setStepIndex(targetIndex);
+  };
+
+  const steps: Step[] = STEP_SEQUENCE.map((id, index) => {
+    const status: Step["status"] = index < stepIndex ? "done" : index === stepIndex ? "current" : "todo";
+    return { id, title: STEP_META[id].title, description: STEP_META[id].description, status };
+  });
+
+  useEffect(() => {
+    summaryOpenRef.current = summaryOpen;
+  }, [summaryOpen]);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+
+    if (summaryOpenRef.current) return;
+
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const offset = window.innerWidth >= 1024 ? 104 : window.innerWidth >= 640 ? 88 : 72;
+    const targetTop = Math.max(0, rect.top + window.scrollY - offset);
+
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
+  }, [stepIndex]);
+
+  // Bloquear scroll del body cuando el resumen está abierto (mejor UX móvil)
+  useEffect(() => {
+    if (!summaryOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [summaryOpen]);
+
+  // Texto y acciones del “footer sticky” mobile según el paso
+  const footerCTA = useMemo(() => {
+    const back =
+      stepIndex > 0
+        ? { label: "Atrás", onClick: goToPreviousStep, disabled: false }
+        : { label: "Atrás", onClick: goToPreviousStep, disabled: true };
+
+    if (currentStepId === "productos") {
+      return {
+        back,
+        next: {
+          label: "Configurar",
+          onClick: goToNextStep,
+          disabled: !canAdvanceFromStep("productos"),
+        },
+      };
+    }
+
+    if (currentStepId === "configuracion") {
+      return {
+        back: { label: "Productos", onClick: () => setStepIndex(0), disabled: false },
+        next: {
+          label: "Continuar",
+          onClick: goToNextStep,
+          disabled: !canAdvanceFromStep("configuracion"),
+        },
+      };
+    }
+
+    if (currentStepId === "datos") {
+      return {
+        back,
+        next: {
+          label: "Ir al resumen",
+          onClick: goToNextStep,
+          disabled: !canAdvanceFromStep("datos"),
+        },
+      };
+    }
+
+    // resumen
+    return {
+      back,
+      next: {
+        label: "Enviar por WhatsApp",
+        onClick: handleSend,
+        disabled: !canSend,
+      },
+    };
+  }, [currentStepId, stepIndex, canSend, itemsConfigOk, customerOk, deliveryOk, items.length]);
+
+  const renderProductsStep = () => (
+    <div className="space-y-5 sm:space-y-6">
+      <ProductSelectionSection
+        category={category}
+        onChangeCategory={setCategory}
+        selectedIds={selectedIds}
+        onToggleProduct={handleToggleProduct}
+      />
+
+      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
+      <div className="hidden sm:flex sm:justify-end">
+        <button
+          type="button"
+          onClick={goToNextStep}
+          disabled={!canAdvanceFromStep("productos")}
+          className={[
+            "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
+            canAdvanceFromStep("productos") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Continuar a configuración
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderConfigStep = () => (
+    <div className="space-y-5 sm:space-y-6">
+      <ProductConfigSection
+        items={items}
+        updateItem={updateItem}
+        updateQty={handleQtyChange}
+        activeProductId={activeProductId}
+        onFocusProduct={setActiveProductId}
+      />
+
+      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
+      <div className="hidden sm:flex sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={() => setStepIndex(0)}
+          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+        >
+          Agregar otro producto
+        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={goToPreviousStep}
+            className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+          >
+            Volver a productos
+          </button>
+
+          <button
+            type="button"
+            onClick={goToNextStep}
+            disabled={!canAdvanceFromStep("configuracion")}
+            className={[
+              "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
+              canAdvanceFromStep("configuracion") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
+            ].join(" ")}
+          >
+            Continuar
+          </button>
         </div>
-      </header>
+      </div>
+    </div>
+  );
 
-      <div className="mx-auto max-w-6xl px-4 pb-14">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
-          {/* LEFT */}
-          <main className="space-y-10">
-            {/* 1) Elegir productos */}
-            <section>
-              <div>
-                <div className="text-sm font-black">1) Elegir productos</div>
-                <div className="text-xs text-white/55">Toca para agregar o quitar.</div>
-              </div>
+  const renderDatosStep = () => (
+    <div className="space-y-5 sm:space-y-6">
+      <CustomerInfoSection
+        name={name}
+        setName={setName}
+        phone={phone}
+        setPhone={setPhone}
+        service={service}
+        setService={setService}
+        barrio={barrio}
+        setBarrio={setBarrio}
+        barrioQuery={barrioQuery}
+        setBarrioQuery={setBarrioQuery}
+        address={address}
+        setAddress={setAddress}
+        reference={reference}
+        setReference={setReference}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        comments={comments}
+        setComments={setComments}
+        deliverySectionEnabled={deliverySectionEnabled}
+        filteredBarrios={filteredBarrios}
+        totalBarrios={totalBarrios}
+        nequiPhone={NEQUI_PHONE}
+      />
 
-              <div className="mt-4">
-                <CategoryTabs value={category} onChange={setCategory} />
-              </div>
+      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
+      <div className="hidden sm:flex sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={goToPreviousStep}
+          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+        >
+          Volver a configuración
+        </button>
 
-              <div className="mt-4">
-                <CatalogoCompacto selectedIds={selectedIds} onToggle={toggleProduct} filter={category} />
-              </div>
-            </section>
+        <button
+          type="button"
+          onClick={goToNextStep}
+          disabled={!canAdvanceFromStep("datos")}
+          className={[
+            "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
+            canAdvanceFromStep("datos") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Continuar al resumen
+        </button>
+      </div>
+    </div>
+  );
 
-            {/* 2) Ajustar */}
-            {items.length ? (
-              <section>
-                <div>
-                  <div className="text-sm font-black">2) Ajustar</div>
-                  <div className="text-xs text-white/55">
-                    Cantidad, tamaño, (gomitas: referencia), toppings (gomitas y frutafresh), extras.
-                  </div>
-                </div>
+  const renderResumenStep = () => (
+    <div className="mx-auto max-w-xl space-y-6">
+      <OrderPricingSidebar
+        items={pricedItems}
+        subtotal={subtotal}
+        delivery={delivery}
+        total={total}
+        canSend={canSend}
+        onSend={handleSend}
+        onRemove={(productId) => updateQty(productId, 0)}
+        sendDisabledHint={sendDisabledHint}
+        checklist={checklist}
+      />
 
-                <div className="mt-5 space-y-7">
-                  {items.map((it) => {
-                    const p = it.product;
-                    const isGomitas = p.category === "gomitas";
-                    const canHaveToppings = p.category === "gomitas" || p.category === "frutafresh";
-                    const sizes = getAvailableSizes(p);
-                    const maxT = maxToppingsFor(p);
+      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
+      <div className="hidden sm:flex sm:justify-start">
+        <button
+          type="button"
+          onClick={goToPreviousStep}
+          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+        >
+          Volver a datos
+        </button>
+      </div>
+    </div>
+  );
 
-                    return (
-                      <div key={p.id} className="border-t border-white/10 pt-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-black truncate">{p.name}</div>
-                            <div className="text-[11px] text-white/55">{isGomitas ? "Gomitas" : "FrutaFresh"}</div>
-                          </div>
+  const stepContent = (() => {
+    switch (currentStepId) {
+      case "productos":
+        return renderProductsStep();
+      case "configuracion":
+        return renderConfigStep();
+      case "datos":
+        return renderDatosStep();
+      case "resumen":
+        return renderResumenStep();
+      default:
+        return null;
+    }
+  })();
 
-                          {/* qty */}
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="h-8 w-8 border border-white/10 bg-transparent hover:bg-white/[0.04]"
-                              onClick={() => updateQty(p.id, Math.max(0, it.qty - 1))}
-                            >
-                              −
-                            </button>
-                            <div className="w-8 text-center text-sm font-black">{it.qty}</div>
-                            <button
-                              type="button"
-                              className="h-8 w-8 border border-white/10 bg-transparent hover:bg-white/[0.04]"
-                              onClick={() => updateQty(p.id, it.qty + 1)}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
+  return (
+    <div className="bg-neutral-950 text-white pt-20 sm:pt-24 lg:pt-28">
+      <ArmarPedidoHeader selectedCount={items.length} />
 
-                        {/* tamaño */}
-                        <div className="mt-3">
-                          <div className="text-[11px] font-black text-white/70">Tamaño</div>
-                          {sizes.length ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {sizes.map((s) => (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => updateItem(p.id, { size: s })}
-                                  className={[
-                                    "border border-white/10 px-3 py-1 text-[11px] font-black",
-                                    it.size === s ? "text-white" : "text-white/55 hover:text-white",
-                                  ].join(" ")}
-                                >
-                                  {labelSize(s)}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="mt-1 text-[11px] text-white/45">No aplica.</div>
-                          )}
-                        </div>
+      <div ref={scrollAnchorRef} className="mx-auto max-w-5xl px-4 pb-24 sm:pb-16">
+        {/* Stepper sticky (mobile) */}
+        <div className="sticky top-[72px] z-40 -mx-4 px-4 py-3 bg-neutral-950/95 backdrop-blur border-b border-white/10 sm:static sm:top-auto sm:z-auto sm:-mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-0 sm:border-b-0">
+          <Stepper steps={steps} onSelectStep={handleSelectStep} />
+        </div>
 
-                        {/* referencias (solo gomitas) + toppings (gomitas y frutafresh) */}
-                        {isGomitas || canHaveToppings ? (
-                          <div className="mt-5 space-y-5">
-                            {/* Referencias SOLO gomitas */}
-                            {isGomitas ? (
-                              <Referencias
-                                value={it.version as any}
-                                onChange={(v) => updateItem(p.id, { version: v as Version })}
-                                small
-                                title="Referencia"
-                                subtitle="Selecciona una"
-                              />
-                            ) : null}
+        {/* En desktop mantenemos botón normal; en móvil usamos FAB */}
+        <div className="hidden sm:mt-4 sm:flex sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setSummaryOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white"
+          >
+            <span aria-hidden>🛒</span>
+            Ver resumen
+          </button>
+        </div>
 
-                            {/* Toppings (gomitas y frutafresh) */}
-                            {canHaveToppings ? (
-                              <div>
-                                <div className="flex items-center justify-between">
-                                  <div className="text-[11px] font-black text-white/70">Toppings</div>
-                                  <div className="text-[11px] text-white/55">
-                                    {it.toppingIds.length}/{maxT}
-                                  </div>
-                                </div>
+        {/* Contenido principal con spacing móvil más compacto */}
+        <div className="mt-5 sm:mt-8">{stepContent}</div>
+      </div>
 
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                  {TOPPINGS.map((t) => {
-                                    const active = it.toppingIds.includes(t.id);
-                                    return (
-                                      <button
-                                        key={t.id}
-                                        type="button"
-                                        onClick={() => {
-                                          const prev = it.toppingIds;
-                                          const next = active
-                                            ? prev.filter((x) => x !== t.id)
-                                            : maxT > 0 && prev.length >= maxT
-                                              ? prev
-                                              : [...prev, t.id];
-                                          updateItem(p.id, { toppingIds: next });
-                                        }}
-                                        className={[
-                                          "border border-white/10 px-3 py-2 text-left text-[11px] font-black",
-                                          active ? "text-white" : "text-white/55 hover:text-white",
-                                        ].join(" ")}
-                                      >
-                                        {t.name}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+      {/* FAB móvil */}
+      <button
+        type="button"
+        onClick={() => setSummaryOpen(true)}
+        className="sm:hidden fixed right-4 bottom-[88px] z-50 inline-flex items-center justify-center h-12 w-12 rounded-full border border-white/20 bg-neutral-950/95 backdrop-blur shadow-[0_12px_30px_rgba(0,0,0,0.55)] active:scale-95"
+        aria-label="Ver resumen"
+      >
+        <span aria-hidden className="text-lg">
+          🛒
+        </span>
+      </button>
 
-                                {isGomitas ? (
-                                  <div className="mt-2 text-[10px] text-white/40">Mínimo 1 topping en gomitas.</div>
-                                ) : (
-                                  <div className="mt-2 text-[10px] text-white/40">Hasta 2 toppings en FrutaFresh.</div>
-                                )}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {/* extras */}
-                        <div className="mt-5">
-                          <div className="text-[11px] font-black text-white/70">Extras</div>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            {EXTRAS.map((e) => {
-                              const qty = it.extrasQty[e.id] ?? 0;
-                              return (
-                                <div key={e.id} className="border border-white/10 p-2">
-                                  <div className="text-[11px] font-black">{e.name}</div>
-                                  <div className="text-[10px] text-white/55">{cop(e.price)}</div>
-
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      className="h-7 w-7 border border-white/10 hover:bg-white/[0.04]"
-                                      onClick={() =>
-                                        updateItem(p.id, {
-                                          extrasQty: { ...it.extrasQty, [e.id]: Math.max(0, qty - 1) },
-                                        })
-                                      }
-                                    >
-                                      −
-                                    </button>
-                                    <div className="w-7 text-center text-sm font-black">{qty}</div>
-                                    <button
-                                      type="button"
-                                      className="h-7 w-7 border border-white/10 hover:bg-white/[0.04]"
-                                      onClick={() =>
-                                        updateItem(p.id, {
-                                          extrasQty: { ...it.extrasQty, [e.id]: qty + 1 },
-                                        })
-                                      }
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {!itemsConfigOk ? (
-                  <div className="mt-4 text-xs text-white/60">
-                    Falta configurar: gomitas (referencia + mínimo 1 topping) o hay toppings excedidos.
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-
-            {/* 3) Datos y envío */}
-            <section className="border-t border-white/10 pt-6">
-              <div className="text-sm font-black">3) Datos y envío</div>
-
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="text-[11px] font-black text-white/70">Nombre</label>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                    placeholder="Tu nombre"
-                  />
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="text-[11px] font-black text-white/70">Teléfono</label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                    placeholder="+57 3xx xxx xxxx"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setService("llevar")}
-                  className={[
-                    "border border-white/10 px-3 py-3 text-left",
-                    service === "llevar" ? "text-white" : "text-white/55 hover:text-white",
-                  ].join(" ")}
-                >
-                  <div className="text-xs font-black">Para llevar</div>
-                  <div className="text-[11px] text-white/55">Recoges tú</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setService("domicilio")}
-                  className={[
-                    "border border-white/10 px-3 py-3 text-left",
-                    service === "domicilio" ? "text-white" : "text-white/55 hover:text-white",
-                  ].join(" ")}
-                >
-                  <div className="text-xs font-black">Domicilio</div>
-                  <div className="text-[11px] text-white/55">Según barrio</div>
-                </button>
-              </div>
-
-              {service === "domicilio" ? (
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-[11px] font-black text-white/70">Barrio</label>
-                    <div className="mt-1 rounded-2xl border border-white/15 bg-white/[0.04] p-3">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <input
-                          value={barrioQuery}
-                          onChange={(e) => setBarrioQuery(e.target.value)}
-                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
-                          placeholder="Escribe para buscar (ej: Centro, Campanario…)"
-                        />
-
-                        <div className="flex shrink-0 gap-2">
-                          {barrio ? (
-                            <button
-                              type="button"
-                              onClick={() => setBarrio(null)}
-                              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 hover:border-white/40 hover:text-white"
-                            >
-                              Quitar selección
-                            </button>
-                          ) : null}
-                          {barrioQuery ? (
-                            <button
-                              type="button"
-                              onClick={() => setBarrioQuery("")}
-                              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/70 hover:border-white/40 hover:text-white"
-                            >
-                              Ver todos
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
-                        {barriosFiltrados.length ? (
-                          barriosFiltrados.map((b) => {
-                            const selected = barrio?.id === b.id;
-                            return (
-                              <button
-                                key={b.id}
-                                type="button"
-                                onClick={() => setBarrio(b)}
-                                className={[
-                                  "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
-                                  selected
-                                    ? "border-white/40 bg-white/15 text-white"
-                                    : "border-white/10 bg-black/40 text-white/80 hover:border-white/25 hover:bg-white/10 hover:text-white",
-                                ].join(" ")}
-                              >
-                                <div className="flex items-baseline justify-between gap-3">
-                                  <span className="font-semibold tracking-wide">{b.name}</span>
-                                  <span className="text-xs text-white/60">
-                                    {b.price == null ? "Por confirmar" : cop(b.price)}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
-                            No encontramos ese barrio. Verifica la ortografía o selecciona "Otro barrio".
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/55">
-                        <span>
-                          {barriosFiltrados.length}/{BARRIOS.length} barrios disponibles
-                        </span>
-                        <span>
-                          {barrio ? `Seleccionado: ${barrio.name}` : "Sin barrio seleccionado"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="text-[11px] font-black text-white/70">Dirección</label>
-                    <input
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                      placeholder="Cra 7 # 12-34"
-                    />
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="text-[11px] font-black text-white/70">Referencia</label>
-                    <input
-                      value={reference}
-                      onChange={(e) => setReference(e.target.value)}
-                      className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                      placeholder="Portón negro…"
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-5 border-t border-white/10 pt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-black">Pago</div>
-                  <div className="text-[11px] text-white/55">
-                    Nequi: <span className="font-black text-white/80">{NEQUI_PHONE}</span>
-                  </div>
-                </div>
-
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="mt-2 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                >
-                  <option value="Transferencia">Transferencia</option>
-                  <option value="Efectivo">Efectivo</option>
-                </select>
-
-                <textarea
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  className="mt-2 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                  rows={3}
-                  placeholder="Comentarios (opcional)"
-                />
-              </div>
-
-              {/* CTA Mobile */}
-              <div className="lg:hidden mt-5">
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={!canSend}
-                  className={[
-                    "w-full border border-white/20 py-3 font-black",
-                    canSend ? "text-white hover:bg-white/[0.04]" : "text-white/35 cursor-not-allowed",
-                  ].join(" ")}
-                >
-                  Enviar WhatsApp • {cop(total)}
-                </button>
-                {!canSend ? (
-                  <div className="mt-2 text-[11px] text-white/55">
-                    Falta: productos, datos, domicilio (si aplica) y gomitas configuradas.
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          </main>
-
-          {/* RIGHT: Resumen con precios */}
-          <aside className="lg:sticky lg:top-24 h-fit">
-            <div className="border-b border-white/10 pb-3">
-              <div className="text-sm font-black">Resumen</div>
-              <div className="text-xs text-white/55">Detalle de precios</div>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              {pricedItems.length ? (
-                pricedItems.map((it) => {
-                  const p = it.product;
-                  const isGomitas = p.category === "gomitas";
-                  const tops = it.toppingIds.length ? toppingsNames(it.toppingIds) : [];
-                  const ex = extrasLine(it.extrasQty);
-
-                  return (
-                    <div key={p.id} className="border-b border-white/10 pb-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-black truncate">{p.name}</div>
-                          <div className="text-[11px] text-white/55">
-                            Cantidad: <span className="font-black text-white/75">x{it.qty}</span>
-                          </div>
-
-                          {isGomitas ? (
-                            <div className="mt-1 text-[11px] text-white/55">
-                              Referencia:{" "}
-                              <span className="font-black text-white/75">
-                                {it.version ? it.version : "Pendiente"}
-                              </span>
-                            </div>
-                          ) : null}
-
-                          {tops.length ? (
-                            <div className="mt-1 text-[11px] text-white/55">
-                              Toppings: <span className="text-white/70">{tops.join(", ")}</span>
-                            </div>
-                          ) : null}
-
-                          {ex.length ? (
-                            <div className="mt-1 text-[11px] text-white/55">
-                              Extras: <span className="text-white/70">{ex.join(", ")}</span>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => updateQty(p.id, 0)}
-                          className="text-[10px] uppercase tracking-[0.22em] text-white/55 hover:text-white"
-                        >
-                          quitar
-                        </button>
-                      </div>
-
-                      <div className="mt-3 space-y-1 text-[12px]">
-                        <div className="flex items-center justify-between text-white/70">
-                          <span>Base (unidad)</span>
-                          <span>{cop(it.baseUnit)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-white/70">
-                          <span>Extras (unidad)</span>
-                          <span>{cop(it.extrasUnit)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-white/80 font-black">
-                          <span>Subtotal item</span>
-                          <span>{cop(it.line)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-sm text-white/55">Aún no has agregado productos.</div>
-              )}
-            </div>
-
-            <div className="mt-4 border-t border-white/10 pt-4 space-y-2">
-              <div className="flex items-center justify-between text-white/70 text-sm">
-                <span>Subtotal</span>
-                <span>{cop(subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-white/70 text-sm">
-                <span>Envío</span>
-                <span>{cop(delivery)}</span>
-              </div>
-              <div className="flex items-center justify-between text-white font-black text-lg pt-2 border-t border-white/10">
-                <span>Total</span>
-                <span>{cop(total)}</span>
-              </div>
-            </div>
+      {/* Footer sticky mobile (CTA siempre visible) */}
+      <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-neutral-950/95 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={footerCTA.back.onClick}
+              disabled={footerCTA.back.disabled}
+              className={[
+                "h-11 flex-1 rounded-full border px-4 text-sm font-black",
+                footerCTA.back.disabled
+                  ? "border-white/10 text-white/25 cursor-not-allowed"
+                  : "border-white/15 text-white/75 active:scale-[0.99]",
+              ].join(" ")}
+            >
+              {footerCTA.back.label}
+            </button>
 
             <button
               type="button"
-              onClick={handleSend}
-              disabled={!canSend}
+              onClick={footerCTA.next.onClick}
+              disabled={footerCTA.next.disabled}
               className={[
-                "mt-4 w-full border border-white/20 py-3 font-black",
-                canSend ? "text-white hover:bg-white/[0.04]" : "text-white/35 cursor-not-allowed",
+                "h-11 flex-[1.4] rounded-full border px-4 text-sm font-black",
+                !footerCTA.next.disabled
+                  ? "border-white/25 text-white active:scale-[0.99]"
+                  : "border-white/10 text-white/25 cursor-not-allowed",
               ].join(" ")}
             >
-              Enviar WhatsApp
+              {footerCTA.next.label}
             </button>
-
-            {!canSend ? (
-              <div className="mt-2 text-[11px] text-white/55">
-                Completa: productos + datos + domicilio (si aplica) + gomitas (referencia + 1 topping).
-              </div>
-            ) : null}
-          </aside>
+          </div>
         </div>
       </div>
+
+      {/* Resumen: bottom sheet en mobile, modal centrado en desktop */}
+      {summaryOpen ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/80"
+          onClick={() => setSummaryOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className={[
+              "absolute left-0 right-0",
+              "sm:inset-0 sm:flex sm:items-center sm:justify-center sm:px-4 sm:py-10",
+              "bottom-0 sm:bottom-auto",
+            ].join(" ")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile sheet */}
+            <div className="sm:hidden w-full rounded-t-3xl border border-white/10 bg-neutral-950/98 shadow-[0_-20px_60px_rgba(0,0,0,0.65)]">
+              <div className="px-4 pt-3 pb-2">
+                <div className="mx-auto h-1.5 w-10 rounded-full bg-white/15" aria-hidden />
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="text-sm font-black">Resumen del pedido</div>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryOpen(false)}
+                    className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/70"
+                  >
+                    ✕ Cerrar
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[72vh] overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+                <OrderPricingSidebar
+                  items={pricedItems}
+                  subtotal={subtotal}
+                  delivery={delivery}
+                  total={total}
+                  canSend={canSend}
+                  onSend={handleSend}
+                  onRemove={(productId) => updateQty(productId, 0)}
+                  sendDisabledHint={sendDisabledHint}
+                  checklist={checklist}
+                />
+              </div>
+            </div>
+
+            {/* Desktop modal */}
+            <div className="hidden sm:block relative w-full max-w-xl">
+              <button
+                type="button"
+                onClick={() => setSummaryOpen(false)}
+                className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70 hover:border-white/40 hover:text-white"
+              >
+                <span aria-hidden>✕</span>
+                Cerrar
+              </button>
+
+              <div className="max-h-[75vh] overflow-y-auto rounded-3xl border border-white/10 bg-neutral-950/95 p-5 shadow-[0_25px_60px_rgba(0,0,0,0.55)]">
+                <OrderPricingSidebar
+                  items={pricedItems}
+                  subtotal={subtotal}
+                  delivery={delivery}
+                  total={total}
+                  canSend={canSend}
+                  onSend={handleSend}
+                  onRemove={(productId) => updateQty(productId, 0)}
+                  sendDisabledHint={sendDisabledHint}
+                  checklist={checklist}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

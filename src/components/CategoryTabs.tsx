@@ -1,15 +1,21 @@
-type TabValue = "todos" | "gomitas" | "frutafresh";
+export type CategoryTabValue = "todos" | "gomitas" | "frutafresh";
 
-const LABELS: Record<TabValue, string> = {
+const LABELS: Record<CategoryTabValue, string> = {
   todos: "Todo",
   gomitas: "Gomitas",
   frutafresh: "FrutaFresh",
 };
 
-export default function CategoryTabs({ value, onChange }: { value: TabValue; onChange: (value: TabValue) => void }) {
+export default function CategoryTabs({
+  value,
+  onChange,
+}: {
+  value: CategoryTabValue;
+  onChange: (value: CategoryTabValue) => void;
+}) {
   return (
     <div className="inline-flex rounded-2xl border border-neutral-800 bg-neutral-900 p-1 text-sm font-bold">
-      {(Object.keys(LABELS) as TabValue[]).map((tab) => {
+      {(Object.keys(LABELS) as CategoryTabValue[]).map((tab) => {
         const active = value === tab;
         return (
           <button
