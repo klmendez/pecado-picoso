@@ -85,6 +85,14 @@ export default function Catalogo({
 }: Props) {
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
 
+  const scrollToElementTop = (el: HTMLElement | null) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const offset = window.innerWidth >= 1024 ? 104 : window.innerWidth >= 640 ? 88 : 72;
+    const targetTop = Math.max(0, rect.top + window.scrollY - offset);
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
+  };
+
   const list = PRODUCTS;
 
   return (
@@ -148,7 +156,11 @@ export default function Catalogo({
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setExpandedProductId((prev) => (prev === p.id ? null : p.id))}
+                      onClick={(e) => {
+                        setExpandedProductId((prev) => (prev === p.id ? null : p.id));
+                        const target = e.currentTarget as unknown as HTMLElement;
+                        requestAnimationFrame(() => scrollToElementTop(target));
+                      }}
                       aria-expanded={expanded}
                       className="w-full text-left group"
                     >

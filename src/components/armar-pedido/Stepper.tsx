@@ -14,9 +14,9 @@ export default function Stepper({ steps, onSelectStep }: Props) {
   if (!steps.length) return null;
 
   return (
-    <nav aria-label="Progreso del pedido" className="py-2">
-      {/* MOBILE: grid 2 columnas, SIN scroll */}
-      <ol className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
+    <nav aria-label="Progreso del pedido" className="py-2 w-full max-w-full overflow-hidden">
+      {/* MOBILE: 1 fila, sin pill/card, sin scroll horizontal */}
+      <ol className="flex items-center w-full max-w-full min-w-0">
         {steps.map((step, index) => {
           const isLast = index === steps.length - 1;
           const interactive = Boolean(onSelectStep) && step.status !== "todo";
@@ -28,60 +28,89 @@ export default function Stepper({ steps, onSelectStep }: Props) {
               ? "text-white"
               : "text-white/45";
 
-          const indicatorClass =
+          // Indicador (sin “pill” en mobile)
+          const indicatorColor =
             step.status === "done"
-              ? "border-emerald-300 text-emerald-200"
+              ? "text-emerald-300"
               : step.status === "current"
-              ? "border-white/70 text-white"
-              : "border-white/20 text-white/45";
+              ? "text-white"
+              : "text-white/45";
+
+          const connectorColor =
+            step.status === "done" ? "bg-emerald-300/40" : "bg-white/15";
 
           return (
-            <li
-              key={step.id}
-              className={[
-                // mobile: sin separadores, cada item es un bloque
-                "sm:flex sm:items-center sm:gap-4",
-              ].join(" ")}
-            >
+            <li key={step.id} className="flex items-center flex-1 min-w-0">
               <button
                 type="button"
                 onClick={() => (interactive ? onSelectStep?.(step.id) : null)}
                 disabled={!interactive}
                 className={[
-                  "group w-full rounded-2xl border border-white/10 px-3 py-3 text-left transition-colors",
-                  "flex items-center gap-3",
-                  // desktop look:
-                  "sm:w-auto sm:rounded-full sm:border-transparent sm:px-3 sm:py-2",
+                  "group flex items-center gap-2 min-w-0",
+                  "w-full text-left transition-colors",
+                  // ✅ Mobile: sin fondo, sin rounded, sin borde (no pill/card)
+                  "py-1 px-0",
+                  // ✅ Desktop: mantiene look más “botón”
+                  "sm:w-auto sm:px-3 sm:py-2 sm:rounded-full sm:border sm:border-white/10",
                   interactive
-                    ? "hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
+                    ? "sm:hover:bg-white/[0.05] sm:focus-visible:outline sm:focus-visible:outline-2 sm:focus-visible:outline-white/60"
                     : "cursor-default",
-                  step.status === "current" ? "bg-white/[0.04] sm:bg-transparent" : "",
                 ].join(" ")}
               >
+                {/* Número / check */}
                 <span
                   className={[
-                    "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-black uppercase tracking-[0.22em] transition-colors shrink-0",
-                    indicatorClass,
-                    interactive ? "group-hover:border-emerald-300/80" : "",
+                    // ✅ Mobile: texto simple (sin circulito)
+                    "shrink-0 font-black text-[11px] leading-none",
+                    indicatorColor,
+                    // ✅ Desktop: sí puede ir con “circulito”
+                    "sm:flex sm:h-8 sm:w-8 sm:items-center sm:justify-center sm:rounded-full sm:border sm:text-xs sm:tracking-[0.22em] sm:uppercase",
+                    step.status === "done"
+                      ? "sm:border-emerald-300 sm:text-emerald-200"
+                      : step.status === "current"
+                      ? "sm:border-white/70 sm:text-white"
+                      : "sm:border-white/20 sm:text-white/45",
                   ].join(" ")}
                 >
                   {step.status === "done" ? "✓" : index + 1}
                 </span>
 
+                {/* ✅ Mobile: mostrar título en la misma fila (compacto, sin segunda fila) */}
                 <span className="min-w-0">
-                  <span className={["block text-sm font-black leading-tight", baseColor].join(" ")}>
+                  <span
+                    className={[
+                      "block truncate text-[11px] leading-tight font-black",
+                      baseColor,
+                      step.status === "current" ? "underline underline-offset-4 decoration-white/40" : "",
+                      // Desktop un poquito más grande
+                      "sm:text-sm sm:no-underline",
+                    ].join(" ")}
+                    title={step.title}
+                  >
                     {step.title}
                   </span>
 
-                  {/* En mobile oculta description para que no se vuelva alto */}
+                  {/* Description solo desktop */}
                   {step.description ? (
-                    <span className="mt-0.5 hidden sm:block text-[11px] text-white/45">{step.description}</span>
+                    <span className="mt-0.5 hidden sm:block text-[11px] text-white/45">
+                      {step.description}
+                    </span>
                   ) : null}
                 </span>
               </button>
 
-              {/* Separador solo en desktop (sm+) */}
-              {!isLast ? <span className="hidden sm:block h-px w-8 shrink-0 bg-white/15" aria-hidden /> : null}
+              {/* Conector entre pasos (se estira, no causa scroll) */}
+              {!isLast ? (
+                <span
+                  className={[
+                    "mx-2 h-px flex-1 min-w-0",
+                    connectorColor,
+                    // En desktop puedes usar uno fijo si quieres
+                    "sm:mx-3 sm:w-10 sm:flex-none",
+                  ].join(" ")}
+                  aria-hidden
+                />
+              ) : null}
             </li>
           );
         })}

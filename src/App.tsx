@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
@@ -8,10 +9,21 @@ import ArmarPedido from "./pages/ArmarPedido";
 import Terminos from "./pages/Terminos";
 import Contacto from "./pages/Contacto";
 
+function ScrollToTop() {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-dvh flex flex-col bg-neutral-950 text-neutral-100">
+        <ScrollToTop />
         <Navbar />
         <main className="flex-1">
           <Routes>

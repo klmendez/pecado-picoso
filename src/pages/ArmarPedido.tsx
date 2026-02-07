@@ -75,6 +75,22 @@ export default function ArmarPedido() {
   const summaryOpenRef = useRef(false);
   const didMountRef = useRef(false);
 
+  const scrollToStepperTop = () => {
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const offset = window.innerWidth >= 1024 ? 104 : window.innerWidth >= 640 ? 88 : 72;
+    const targetTop = Math.max(0, rect.top + window.scrollY - offset);
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
+  };
+
+  const handleFocusProduct = (productId: string | null) => {
+    setActiveProductId(productId);
+    if (productId === null) {
+      requestAnimationFrame(() => scrollToStepperTop());
+    }
+  };
+
   const currentStepId = STEP_SEQUENCE[stepIndex];
 
   const handleToggleProduct = (product: Product) => {
@@ -304,7 +320,7 @@ export default function ArmarPedido() {
         updateItem={updateItem}
         updateQty={handleQtyChange}
         activeProductId={activeProductId}
-        onFocusProduct={setActiveProductId}
+        onFocusProduct={handleFocusProduct}
       />
 
       {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
