@@ -256,7 +256,7 @@ export default function ArmarPedido() {
 
     if (currentStepId === "configuracion") {
       return {
-        back: { label: "Productos", onClick: () => setStepIndex(0), disabled: false },
+        back: { label: "Agregar productos", onClick: () => setStepIndex(0), disabled: false },
         next: {
           label: "Continuar",
           onClick: goToNextStep,
@@ -501,8 +501,8 @@ export default function ArmarPedido() {
               className={[
                 "h-11 flex-1 rounded-full border px-4 text-sm font-black",
                 footerCTA.back.disabled
-                  ? "border-white/10 text-white/25 cursor-not-allowed"
-                  : "border-white/15 text-white/75 active:scale-[0.99]",
+                  ? "border-white/10 bg-neutral-950 text-white/25 cursor-not-allowed"
+                  : "border-red-700/50 bg-red-950 text-white active:scale-[0.99]",
               ].join(" ")}
             >
               {footerCTA.back.label}
@@ -515,8 +515,8 @@ export default function ArmarPedido() {
               className={[
                 "h-11 flex-[1.4] rounded-full border px-4 text-sm font-black",
                 !footerCTA.next.disabled
-                  ? "border-white/25 text-white active:scale-[0.99]"
-                  : "border-white/10 text-white/25 cursor-not-allowed",
+                  ? "border-red-500/70 bg-red-800 text-white shadow-[0_10px_28px_rgba(220,38,38,0.35)] active:scale-[0.99]"
+                  : "border-white/10 bg-neutral-950 text-white/25 cursor-not-allowed",
               ].join(" ")}
             >
               {footerCTA.next.label}
