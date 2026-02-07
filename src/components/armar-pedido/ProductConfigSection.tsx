@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 
 import { EXTRAS } from "../../data/extras";
-import type { Version } from "../../data/products";
 import type { OrderItem } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
 import Referencias from "../Referencias";
@@ -121,6 +120,7 @@ export default function ProductConfigSection({
           const canHaveToppings = p.category === "gomitas" || p.category === "frutafresh";
           const sizes = getAvailableSizes(p);
           const maxT = maxToppingsFor(p);
+          const showToppings = canHaveToppings && maxT > 0;
 
           const isActive = activeProductId === p.id;
           const isComplete = isItemConfigComplete(it);
@@ -270,22 +270,19 @@ export default function ProductConfigSection({
                     )}
                   </div>
 
-                  {isGomitas || canHaveToppings ? (
+                  {isGomitas || showToppings ? (
                     <div className="mt-6 space-y-5 border-l border-white/10 pl-6">
                       {isGomitas ? (
                         <Referencias
-                          value={it.version as Version | null}
+                          value={it.version ?? null}
                           onChange={(v) => {
                             focusProduct();
                             updateItem(p.id, { version: v });
                           }}
-                          small
-                          title="Referencia"
-                          subtitle="Selecciona una"
                         />
                       ) : null}
 
-                      {canHaveToppings ? (
+                      {showToppings ? (
                         <Toppings
                           value={it.toppingIds}
                           onChange={(next) => {
@@ -296,7 +293,7 @@ export default function ProductConfigSection({
                           min={isGomitas && maxT > 0 ? 1 : 0}
                           small
                           title="Toppings"
-                          subtitle={isGomitas ? "Selecciona (mínimo 1)" : "Opcional (hasta 2)"}
+                          subtitle={isGomitas ? "Selecciona (mínimo 1)" : `Opcional (hasta ${maxT})`}
                         />
                       ) : null}
                     </div>

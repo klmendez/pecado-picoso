@@ -177,7 +177,7 @@ export const PRODUCTS: Product[] = [
     name: "Piñasón Picoso",
     description: "Rebanada de piña fresca bañada en chamoy artesanal y cubierta con tajín.",
     image: pinasonImg,
-     toppingsIncludedMax: 2,
+    toppingsIncludedMax: 0,
     prices: {
       fijo: 8000,
     },

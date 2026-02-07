@@ -18,7 +18,7 @@ export function defaultSize(product: Product): Size | null {
 
 export function maxToppingsFor(product: Product): number {
   if (product.category === "gomitas") return Math.max(0, product.toppingsIncludedMax ?? 0);
-  if (product.category === "frutafresh") return 2;
+  if (product.category === "frutafresh") return Math.max(0, product.toppingsIncludedMax ?? 2);
   return 0;
 }
 

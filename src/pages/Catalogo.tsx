@@ -237,7 +237,11 @@ export default function Catalogo({
                                   puede variar el precio.
                                 </span>
                               ) : (
-                                <span>Incluye hasta 2 toppings (los eliges al armar tu pedido).</span>
+                                <span>
+                                  {(p.toppingsIncludedMax ?? 2) > 0
+                                    ? `Incluye hasta ${(p.toppingsIncludedMax ?? 2).toString()} toppings (los eliges al armar tu pedido).`
+                                    : "No incluye toppings."}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -266,7 +270,11 @@ export default function Catalogo({
                               variar el precio.
                             </span>
                           ) : (
-                            <span>Incluye hasta 2 toppings (los eliges al armar tu pedido).</span>
+                            <span>
+                              {(p.toppingsIncludedMax ?? 2) > 0
+                                ? `Incluye hasta ${(p.toppingsIncludedMax ?? 2).toString()} toppings (los eliges al armar tu pedido).`
+                                : "No incluye toppings."}
+                            </span>
                           )}
                         </div>
 
