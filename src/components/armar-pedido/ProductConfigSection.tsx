@@ -194,7 +194,7 @@ export default function ProductConfigSection({
                       {isComplete ? (
                         <span className="text-[10px] text-white/45">No se abrirá a menos que edites</span>
                       ) : (
-                        <span className="text-[10px] text-white/45">Toca para configurar</span>
+                        <span className="text-[10px] text-white/45">Toca para personalizar producto</span>
                       )}
                     </div>
                   ) : null}

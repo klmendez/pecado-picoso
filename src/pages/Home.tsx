@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import Catalogo from "./Catalogo";
 import ArmarPedido from "./ArmarPedido";
-
 
 
 
@@ -58,11 +58,11 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.05 }}
               className="
- mt-6 text-lg md:text-xl text-white/90 leading-relaxed
-    uppercase
-    font-bold
-    text-white/100
-  "
+                mt-6 text-lg md:text-xl text-white/90 leading-relaxed
+                uppercase
+                font-bold
+                text-white/100
+              "
             >
               Bienvenidos a 
             </motion.span>
@@ -73,11 +73,11 @@ export default function Home() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.45 }}
               className="
-    mx-auto
-    mb-6
-    w-40 md:w-52
-    drop-shadow-[0_18px_40px_rgba(0,0,0,0.65)]
-  "
+                mx-auto
+                mb-6
+                w-40 md:w-52
+                drop-shadow-[0_18px_40px_rgba(0,0,0,0.65)]
+              "
             />
 
             <motion.p
@@ -104,35 +104,19 @@ export default function Home() {
               <Link
                 to="/armar"
                 className="
-      rounded-full px-7 py-3 font-black text-sm md:text-base
-      bg-gradient-to-r from-red-700 via-red-600 to-red-800
-      text-white
-      shadow-[0_10px_30px_rgba(220,38,38,0.45)]
-      hover:scale-[1.03]
-      hover:shadow-[0_14px_40px_rgba(220,38,38,0.65)]
-      active:scale-[0.98]
-      transition-all
-    "
+                  rounded-full px-7 py-3 font-black text-sm md:text-base
+                  bg-gradient-to-r from-red-700 via-red-600 to-red-800
+                  text-white
+                  shadow-[0_10px_30px_rgba(220,38,38,0.45)]
+                  hover:scale-[1.03]
+                  hover:shadow-[0_14px_40px_rgba(220,38,38,0.65)]
+                  active:scale-[0.98]
+                  transition-all
+                "
               >
                 Armar pedido ahora
               </Link>
-
-              <Link
-                to="/catalogo"
-                className="
-      rounded-full px-7 py-3 font-black text-sm md:text-base
-      border border-white/40
-      text-white
-      hover:bg-white/10
-      hover:border-white/70
-      transition
-    "
-              >
-                Ver catálogo completo
-              </Link>
             </motion.div>
-
-
 
             <div className="mt-8 text-xs text-white/70">
               *Domicilios sujetos a zona. En el local: próximamente.*
@@ -142,10 +126,38 @@ export default function Home() {
       </div>
     </section>
 
+    {/* Catálogo en el Home */}
+    <section className="bg-neutral-950 text-white py-20">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-black mb-4">Nuestro Catálogo</h2>
+          <p className="text-white/70">Conoce todos nuestros productos disponibles</p>
+        </div>
+        
+        <Catalogo embedded={true} showHeader={false} />
+        
+        <div className="text-center mt-12">
+          <Link
+            to="/armar"
+            className="
+              rounded-full px-8 py-4 font-black text-base
+              bg-gradient-to-r from-red-700 via-red-600 to-red-800
+              text-white
+              shadow-[0_10px_30px_rgba(220,38,38,0.45)]
+              hover:scale-[1.03]
+              hover:shadow-[0_14px_40px_rgba(220,38,38,0.65)]
+              active:scale-[0.98]
+              transition-all
+            "
+          >
+            Quiero armar mi pedido
+          </Link>
+        </div>
+      </div>
+    </section>
+
+    {/* Sección para armar pedido completa debajo del catálogo */}
     <ArmarPedido />
     </>
-
   );
- 
-
 }

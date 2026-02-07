@@ -1,7 +1,6 @@
 import { NavLink, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import logo from "../assets/logo.webp";
-
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   [
     "px-3 py-2 rounded-lg text-sm font-medium transition no-underline visited:text-inherit",
@@ -33,6 +32,7 @@ export default function Navbar() {
               to="/"
               className="flex items-center gap-2 text-white no-underline visited:text-inherit min-w-0"
               aria-label="Ir al inicio"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             >
               <div className="leading-tight min-w-0">
                 <div className="font-black tracking-wide text-[13px] sm:text-sm md:text-base truncate">
@@ -46,6 +46,9 @@ export default function Navbar() {
               
               <NavLink to="/armar" className={navLinkClass}>
                 Armar pedido
+              </NavLink>
+              <NavLink to="/catalogo" className={navLinkClass}>
+                Ver catálogo
               </NavLink>
               <NavLink to="/terminos" className={navLinkClass}>
                 Términos
@@ -87,6 +90,7 @@ export default function Navbar() {
               no-underline visited:text-inherit
             "
             aria-label="Ir al inicio"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             <motion.div
               initial={{ rotate: -8, scale: 0.95 }}

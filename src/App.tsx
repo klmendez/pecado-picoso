@@ -3,7 +3,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
 import Home from "./pages/Home";
-import CatalogoPage from "./pages/CatalogoPage"; // 👈 CAMBIO
+import CatalogoPage from "./pages/CatalogoPage";
 import ArmarPedido from "./pages/ArmarPedido";
 import Terminos from "./pages/Terminos";
 import Contacto from "./pages/Contacto";
@@ -16,10 +16,7 @@ export default function App() {
         <main className="flex-1">
           <Routes>
             <Route path="/" element={<Home />} />
-
-            {/* 👇 AQUÍ EL CAMBIO REAL */}
             <Route path="/catalogo" element={<CatalogoPage />} />
-
             <Route path="/armar" element={<ArmarPedido />} />
             <Route path="/terminos" element={<Terminos />} />
             <Route path="/contacto" element={<Contacto />} />

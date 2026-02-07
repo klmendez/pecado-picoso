@@ -80,8 +80,16 @@ export default function ArmarPedido() {
   const handleToggleProduct = (product: Product) => {
     const alreadySelected = selectedIds.includes(product.id);
     toggleProduct(product);
-    if (alreadySelected && activeProductId === product.id) {
-      setActiveProductId(null);
+    
+    if (!alreadySelected) {
+      // Si es un producto nuevo, ir al paso de configuración y activarlo
+      setStepIndex(1);
+      setActiveProductId(product.id);
+    } else {
+      // Si se quitó el producto y estaba activo, desactivarlo
+      if (activeProductId === product.id) {
+        setActiveProductId(null);
+      }
     }
   };
 
@@ -223,7 +231,7 @@ export default function ArmarPedido() {
       return {
         back,
         next: {
-          label: "Configurar",
+          label: "Personalizar producto",
           onClick: goToNextStep,
           disabled: !canAdvanceFromStep("productos"),
         },
