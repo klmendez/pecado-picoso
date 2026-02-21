@@ -1,6 +1,12 @@
+import { useEffect } from "react";
+
 import type { Barrio } from "../../data/barrios";
 import type { PaymentMethod, Service } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
+
+export type CustomerInfoField = "name" | "phone" | "barrio" | "address";
+export type CustomerInfoErrors = Record<CustomerInfoField, boolean>;
+export type CustomerInfoFocusRequest = { field: CustomerInfoField; id: number } | null;
 
 type Props = {
   name: string;
@@ -25,6 +31,10 @@ type Props = {
   filteredBarrios: Barrio[];
   totalBarrios: number;
   nequiPhone: string;
+  showErrors: boolean;
+  errors: CustomerInfoErrors;
+  focusRequest: CustomerInfoFocusRequest;
+  onFocusRequestConsumed: () => void;
 };
 
 export default function CustomerInfoSection({
@@ -50,27 +60,78 @@ export default function CustomerInfoSection({
   filteredBarrios,
   totalBarrios,
   nequiPhone,
+  showErrors,
+  errors,
+  focusRequest,
+  onFocusRequestConsumed,
 }: Props) {
+  useEffect(() => {
+    if (!focusRequest) return;
+
+    const fieldToId: Record<CustomerInfoField, string> = {
+      name: "customer-name",
+      phone: "customer-phone",
+      barrio: "customer-barrio-search",
+      address: "customer-address",
+    };
+
+    const element = document.getElementById(fieldToId[focusRequest.field]);
+    if (element instanceof HTMLElement) {
+      element.focus({ preventScroll: true });
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    onFocusRequestConsumed();
+  }, [focusRequest, onFocusRequestConsumed]);
+
+  const hasErrors = Object.values(errors).some(Boolean);
+
+  const labelClass = (errored: boolean) =>
+    `text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px] ${errored ? "text-red-200" : "text-white/70"}`;
+
+  const inputClass = (errored: boolean) =>
+    [
+      "mt-1 w-full border bg-transparent px-3 py-2 text-[13px] outline-none sm:text-sm",
+      errored
+        ? "border-red-500/70 focus:border-red-400/80 focus:ring-2 focus:ring-red-500/30"
+        : "border-white/10 focus:border-white/40 focus:ring-2 focus:ring-white/20",
+    ].join(" ");
+
   return (
     <section className="border-t border-white/10 pt-6">
-      <div className="text-sm font-black">3) Datos y envío</div>
+      <div className="text-[13px] font-black uppercase tracking-[0.16em] text-white/80 sm:text-sm sm:tracking-[0.18em]">
+        3) Datos y envío
+      </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-1 text-[11px] leading-relaxed text-white/60 sm:text-xs">
+        Elige si quieres que llevemos tu pedido a domicilio o si prefieres recogerlo tú.
+        Completa luego tus datos para que podamos contactarte y entregar sin contratiempos.
+      </div>
+
+      {showErrors && hasErrors ? (
+        <div className="mt-3 rounded-2xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-xs font-semibold text-red-200">
+          Llena estos datos para continuar.
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
         <div className="col-span-2 sm:col-span-1">
-          <label className="text-[11px] font-black text-white/70">Nombre</label>
+          <label className={labelClass(showErrors && errors.name)}>Nombre</label>
           <input
+            id="customer-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+            className={inputClass(showErrors && errors.name)}
             placeholder="Tu nombre"
           />
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <label className="text-[11px] font-black text-white/70">Teléfono</label>
+          <label className={labelClass(showErrors && errors.phone)}>Teléfono</label>
           <input
+            id="customer-phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+            className={inputClass(showErrors && errors.phone)}
             placeholder="+57 3xx xxx xxxx"
           />
         </div>
@@ -86,7 +147,7 @@ export default function CustomerInfoSection({
           ].join(" ")}
         >
           <div className="text-xs font-black">Para llevar</div>
-          <div className="text-[11px] text-white/55">Recoges tú</div>
+          <div className="text-[11px] text-white/55">Recoges tú en el punto acordado.</div>
         </button>
 
         <button
@@ -98,21 +159,42 @@ export default function CustomerInfoSection({
           ].join(" ")}
         >
           <div className="text-xs font-black">Domicilio</div>
-          <div className="text-[11px] text-white/55">Según barrio</div>
+          <div className="text-[11px] text-white/55">Te lo llevamos a tu barrio (aplica costo de envío).</div>
         </button>
       </div>
 
       {deliverySectionEnabled ? (
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="text-[11px] font-black text-white/70">Barrio</label>
-            <div className="mt-1 rounded-2xl border border-white/15 bg-white/[0.04] p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <label className={labelClass(showErrors && errors.barrio)}>Barrio</label>
+              <span
+                className={[
+                  "text-[11px] text-white/45 sm:text-xs",
+                  showErrors && errors.barrio ? "text-red-200" : "",
+                ].join(" ")}
+              >
+                Si no encuentras tu barrio, elige uno cercano o tu zona.
+              </span>
+            </div>
+            <div
+              className={[
+                "mt-1 rounded-2xl border bg-white/[0.04] p-3",
+                showErrors && errors.barrio ? "border-red-500/60" : "border-white/15",
+              ].join(" ")}
+            >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
+                  id="customer-barrio-search"
                   value={barrioQuery}
                   onChange={(e) => setBarrioQuery(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
-                  placeholder="Escribe para buscar (ej: Centro, Campanario…)"
+                  className={[
+                    "w-full rounded-xl border bg-black/40 px-3 py-2 text-sm text-white outline-none",
+                    showErrors && errors.barrio
+                      ? "border-red-500/70 focus:border-red-400/80 focus:ring-2 focus:ring-red-500/30"
+                      : "border-white/10 focus:border-white/40 focus:ring-2 focus:ring-white/20",
+                  ].join(" ")}
+                  placeholder="Buscar barrio (ej: Centro, Campanario…)"
                 />
 
                 <div className="flex shrink-0 gap-2">
@@ -162,7 +244,7 @@ export default function CustomerInfoSection({
                   })
                 ) : (
                   <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
-                    No encontramos ese barrio. Verifica la ortografía o selecciona "Otro barrio".
+                    No encontramos ese barrio. Verifica la ortografía o elige uno cercano a tu zona.
                   </div>
                 )}
               </div>
@@ -177,11 +259,12 @@ export default function CustomerInfoSection({
           </div>
 
           <div className="col-span-2 sm:col-span-1">
-            <label className="text-[11px] font-black text-white/70">Dirección</label>
+            <label className={labelClass(showErrors && errors.address)}>Dirección</label>
             <input
+              id="customer-address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="mt-1 w-full border border-white/10 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20"
+              className={inputClass(showErrors && errors.address)}
               placeholder="Cra 7 # 12-34"
             />
           </div>

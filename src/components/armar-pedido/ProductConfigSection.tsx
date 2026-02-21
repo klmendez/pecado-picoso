@@ -25,6 +25,11 @@ function isItemConfigComplete(item: OrderItem) {
       if (item.toppingIds.length < 1) return false;
       if (item.toppingIds.length > max) return false;
     }
+    const gomitasExtrasQty = item.extrasQty?.gomitas ?? 0;
+    if (gomitasExtrasQty > 0) {
+      const selections = item.extraSelections?.gomitas ?? [];
+      if (selections.length < gomitasExtrasQty) return false;
+    }
     return true;
   }
 
@@ -121,6 +126,8 @@ export default function ProductConfigSection({
           const sizes = getAvailableSizes(p);
           const maxT = maxToppingsFor(p);
           const showToppings = canHaveToppings && maxT > 0;
+          const extrasQty = it.extrasQty ?? {};
+          const extraSelections = it.extraSelections ?? {};
 
           const isActive = activeProductId === p.id;
           const isComplete = isItemConfigComplete(it);
@@ -299,25 +306,44 @@ export default function ProductConfigSection({
                     </div>
                   ) : null}
 
-                  <div className="mt-6 border-l border-white/10 pl-6">
+                  <div className="mt-6 space-y-4 border-l border-white/10 pl-6">
                     <div className="text-[11px] font-black text-white/70">Extras</div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="text-[10px] text-white/45">Aumenta el antojo con agregados adicionales.</div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {EXTRAS.map((extra) => {
-                        const qty = it.extrasQty[extra.id] ?? 0;
+                        const qty = extrasQty[extra.id] ?? 0;
+                        const currentSelections = extraSelections[extra.id] ?? [];
+
+                        const applyExtrasPatch = (nextQty: number, nextSelectionIds: string[]) => {
+                          const nextExtrasQty = { ...extrasQty, [extra.id]: nextQty };
+                          const nextExtraSelections = { ...extraSelections };
+
+                          if (nextSelectionIds.length) nextExtraSelections[extra.id] = nextSelectionIds;
+                          else delete nextExtraSelections[extra.id];
+
+                          updateItem(p.id, {
+                            extrasQty: nextExtrasQty,
+                            extraSelections: nextExtraSelections,
+                          });
+                        };
+
                         return (
                           <div key={extra.id} className="rounded-xl border border-white/10 p-3">
-                            <div className="text-[11px] font-black">{extra.name}</div>
-                            <div className="text-[10px] text-white/55">{cop(extra.price)}</div>
+                            <div className="flex items-center justify-between text-[11px] font-black text-white/80">
+                              <span>{extra.name}</span>
+                              <span className="text-[10px] text-white/50">{cop(extra.price)}</span>
+                            </div>
 
-                            <div className="mt-2 flex items-center gap-2">
+                            <div className="mt-3 flex items-center gap-2">
                               <button
                                 type="button"
                                 className="h-7 w-7 border border-white/10 transition hover:border-white/30 hover:bg-white/[0.05]"
                                 onClick={() => {
                                   focusProduct();
-                                  updateItem(p.id, {
-                                    extrasQty: { ...it.extrasQty, [extra.id]: Math.max(0, qty - 1) },
-                                  });
+                                  const nextQty = Math.max(0, qty - 1);
+                                  const trimmed = currentSelections.slice(0, nextQty);
+                                  applyExtrasPatch(nextQty, trimmed);
                                 }}
                               >
                                 −
@@ -328,21 +354,39 @@ export default function ProductConfigSection({
                                 className="h-7 w-7 border border-white/10 transition hover:border-white/30 hover:bg-white/[0.05]"
                                 onClick={() => {
                                   focusProduct();
-                                  updateItem(p.id, {
-                                    extrasQty: { ...it.extrasQty, [extra.id]: qty + 1 },
-                                  });
+                                  const nextQty = qty + 1;
+                                  const trimmed = currentSelections.slice(0, nextQty);
+                                  applyExtrasPatch(nextQty, trimmed);
                                 }}
                               >
                                 +
                               </button>
                             </div>
+
+                            {extra.id === "gomitas" && qty > 0 ? (
+                              <div className="mt-4">
+                                <Toppings
+                                  value={currentSelections}
+                                  onChange={(next) => {
+                                    focusProduct();
+                                    const trimmed = next.slice(0, qty);
+                                    applyExtrasPatch(qty, trimmed);
+                                  }}
+                                  max={qty}
+                                  min={qty}
+                                  small
+                                  title="Gomitas extra"
+                                  subtitle={`Selecciona ${qty} ${qty === 1 ? "opción" : "opciones"}`}
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-col gap-3 border-l border-white/10 pl-6 sm:flex-row sm:items-center sm:justify-end">
+                  <div className="mt-8 flex justify-end gap-3 border-t border-white/10 pt-4">
                     <button
                       type="button"
                       onClick={() => onFocusProduct?.(null)}

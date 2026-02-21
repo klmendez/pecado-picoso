@@ -75,14 +75,12 @@ export default function Stepper({ steps, onSelectStep }: Props) {
                   {step.status === "done" ? "✓" : index + 1}
                 </span>
 
-                {/* ✅ Mobile: mostrar título en la misma fila (compacto, sin segunda fila) */}
                 <span className="min-w-0">
                   <span
                     className={[
                       "block truncate text-[11px] leading-tight font-black",
                       baseColor,
                       step.status === "current" ? "underline underline-offset-4 decoration-white/40" : "",
-                      // Desktop un poquito más grande
                       "sm:text-sm sm:no-underline",
                     ].join(" ")}
                     title={step.title}
@@ -99,13 +97,11 @@ export default function Stepper({ steps, onSelectStep }: Props) {
                 </span>
               </button>
 
-              {/* Conector entre pasos (se estira, no causa scroll) */}
               {!isLast ? (
                 <span
                   className={[
                     "mx-2 h-px flex-1 min-w-0",
                     connectorColor,
-                    // En desktop puedes usar uno fijo si quieres
                     "sm:mx-3 sm:w-10 sm:flex-none",
                   ].join(" ")}
                   aria-hidden

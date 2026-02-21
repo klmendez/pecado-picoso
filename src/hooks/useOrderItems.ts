@@ -19,6 +19,7 @@ function createItem(product: Product): OrderItem {
     size: defaultSize(product),
     toppingIds: [],
     extrasQty: {},
+    extraSelections: {},
   };
 }
 

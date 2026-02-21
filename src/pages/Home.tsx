@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import Catalogo from "./Catalogo";
 import ArmarPedido from "./ArmarPedido";
-
-
-
+import ProductCarousel from "../components/home/ProductCarousel";
+import imgAhogada from "../assets/referencias/ahogado.jpg";
+import imgPicosa from "../assets/referencias/picosin.jpg";
 
 import bg1 from "../assets/home/1.jpeg";
 import bg3 from "../assets/home/3.jpeg";
@@ -126,21 +125,52 @@ export default function Home() {
       </div>
     </section>
 
-    {/* Catálogo en el Home */}
-    <section className="bg-neutral-950 text-white py-20">
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-black mb-4">Nuestro Catálogo</h2>
-          <p className="text-white/70">Conoce todos nuestros productos disponibles</p>
+    {/* Intro visual gomitas */}
+    <section className="bg-neutral-950 text-white pt-14 pb-10">
+      <div className="mx-auto max-w-5xl px-5 text-center">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-white/45">Gomitas</div>
+        <h2 className="mt-2 text-[1.7rem] sm:text-3xl font-black leading-tight">Ahogadas o picosas, tú decides</h2>
+        <p className="mt-3 text-[0.9rem] sm:text-sm text-white/70 leading-relaxed">
+          Nuestras gomitas pueden ser ahogadas en chamoy o con un toque picoso. La presentación y el precio varía según la referencia que elijas.
+        </p>
+
+        <div className="mt-9 grid grid-cols-2 gap-4 sm:gap-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden ring-1 ring-white/15 shadow-[0_10px_28px_rgba(0,0,0,0.45)]">
+              <img src={imgAhogada} alt="Gomitas ahogadas" className="h-full w-full object-cover" loading="lazy" />
+              <div className="absolute inset-0 bg-black/20" aria-hidden />
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.26em] text-white/65">Ahogada</div>
+            <p className="text-[11px] sm:text-[12px] text-white/55 max-w-[11rem] sm:max-w-[12rem]">
+              Bañadas en nuestro mix especial de chamoy.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden ring-1 ring-white/15 shadow-[0_10px_28px_rgba(0,0,0,0.45)]">
+              <img src={imgPicosa} alt="Gomitas picosas" className="h-full w-full object-cover" loading="lazy" />
+              <div className="absolute inset-0 bg-black/20" aria-hidden />
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.26em] text-white/65">Picosa</div>
+            <p className="text-[11px] sm:text-[12px] text-white/55 max-w-[11rem] sm:max-w-[12rem]">
+              Con el toque justo de picante que enamora.
+            </p>
+          </div>
         </div>
-        
-        <Catalogo embedded={true} showHeader={false} />
-        
-        <div className="text-center mt-12">
+      </div>
+    </section>
+
+    {/* Carrusel destacado */}
+    <section className="bg-neutral-950 text-white pb-12 sm:pb-16">
+      <div className="mx-auto max-w-6xl px-4">
+
+        <ProductCarousel />
+
+        <div className="text-center mt-8 sm:mt-10">
           <Link
             to="/armar"
             className="
-              rounded-full px-8 py-4 font-black text-base
+              inline-flex items-center justify-center rounded-full px-6 py-2.5 font-black text-xs uppercase tracking-[0.16em] sm:text-sm sm:tracking-[0.2em]
               bg-gradient-to-r from-red-700 via-red-600 to-red-800
               text-white
               shadow-[0_10px_30px_rgba(220,38,38,0.45)]
@@ -157,7 +187,9 @@ export default function Home() {
     </section>
 
     {/* Sección para armar pedido completa debajo del catálogo */}
-    <ArmarPedido />
+    <div className="bg-neutral-950">
+      <ArmarPedido />
+    </div>
     </>
   );
 }

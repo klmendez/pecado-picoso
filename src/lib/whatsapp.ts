@@ -28,6 +28,7 @@ export type OrderItem = {
   size: Size | null; // aplica a gomitas y frutafresh porSize
   toppingIds: string[]; // aplica a TODO producto con toppingsIncludedMax > 0
   extrasQty: Record<string, number>;
+  extraSelections: Record<string, string[]>;
 };
 
 function sizeLabel(size: Size | null) {
@@ -89,13 +90,27 @@ export function formatToppingsNames(toppingIds: string[], toppingsCatalog: Toppi
   return names.join(", ");
 }
 
-export function formatExtrasNames(extrasQty: Record<string, number>, extrasCatalog: Extra[]) {
+export function formatExtrasNames(
+  extrasQty: Record<string, number>,
+  extrasCatalog: Extra[],
+  extraSelections: Record<string, string[]>,
+  toppingsCatalog: Topping[],
+) {
   const lookup = new Map(extrasCatalog.map((e) => [e.id, e.name]));
+  const toppingLookup = new Map(toppingsCatalog.map((t) => [t.id, t.name]));
   const parts: string[] = [];
   for (const [id, qty] of Object.entries(extrasQty)) {
     const q = Number(qty) || 0;
     if (q <= 0) continue;
-    parts.push(`${lookup.get(id) ?? id} x${q}`);
+    const selections = extraSelections[id] ?? [];
+    const detail =
+      id === "gomitas" && selections.length
+        ? ` (${selections
+            .slice(0, q)
+            .map((sel) => toppingLookup.get(sel) ?? sel)
+            .join(", ")})`
+        : "";
+    parts.push(`${lookup.get(id) ?? id} x${q}${detail}`);
   }
   return parts.length ? parts.join(", ") : undefined;
 }
@@ -165,6 +180,10 @@ export function buildWhatsAppMessage(args: {
   const serviceLabel = formatServiceLabel(service);
   const barrioLine = formatBarrioLine(service, barrio);
   const addressLine = formatAddressLine(service, address, reference);
+  const deliveryPendingLine =
+    service === "domicilio" && barrio?.price == null
+      ? "⚠️ *El valor del envío se confirma según tu ubicación.*"
+      : undefined;
 
   const productLines = items.flatMap((it, idx) => {
     const detail = buildDetailLine(it.product, it.version, it.size);
@@ -174,7 +193,7 @@ export function buildWhatsAppMessage(args: {
     const toppingsNames =
       maxToppings > 0 ? formatToppingsNames(it.toppingIds, toppingsCatalog) : undefined;
 
-    const extrasNames = formatExtrasNames(it.extrasQty, extrasCatalog);
+    const extrasNames = formatExtrasNames(it.extrasQty, extrasCatalog, it.extraSelections ?? {}, toppingsCatalog);
 
     const head = `${idx + 1}) x${it.qty} ${pickCategoryEmoji(it.product)} *${it.product.name}*${
       detail ? `\n   ▸ ${detail}` : ""
@@ -194,42 +213,50 @@ export function buildWhatsAppMessage(args: {
 
   const payEmoji = paymentMethod === "Transferencia" ? "🏦" : "💵";
 
-  return [
-    `👋 *Nuevo pedido*`,
-    `🧾 *Código:* ${code}`,
-    `🌐 *Origen:* ${origin}`,
+  const headerLines = [`👋 *Nuevo pedido*`, `🧾 *Código:* ${code}`, `🌐 *Origen:* ${origin}`];
 
+  const customerSection = [
+    section("🙋 Datos del cliente"),
+    `Nombre: *${name}*`,
+    `Teléfono: *${phone}*`,
+  ];
+
+  const serviceSection = [
     section(`${pickServiceEmoji(service)} Servicio`),
     `Tipo: *${serviceLabel}*`,
     barrioLine ?? null,
     addressLine ?? null,
+    deliveryPendingLine ?? null,
+  ];
 
-    section("🙋 Datos del cliente"),
-    `Nombre: *${name}*`,
-    `Teléfono: *${phone}*`,
+  const productsSection = [section("� Productos"), ...productLines];
 
-    section("🛒 Productos"),
-    ...productLines,
+  const commentsSection = comments?.trim()
+    ? [section("📝 Comentarios"), comments.trim()]
+    : [];
 
+  const sendSection = [section("� Enviar"), `Envíanos este mensaje ahora y confirmamos tu pedido 🙌`];
+
+  const totalsSection = [
     section("💰 Totales"),
     `Subtotal: *${cop(subtotal)}*`,
     deliveryLine,
     `Total: *${cop(total)}*`,
-
-    section(`${payEmoji} Pago`),
-    `Método: *${paymentMethod}*`,
-    `Total a pagar: *${cop(total)}*`,
+    `${payEmoji} Método de pago: *${paymentMethod}*`,
     `Nequi / Llave: *${NEQUI_PHONE}*`,
     paymentMethod === "Transferencia"
       ? `📎 Si pagas por transferencia, envíanos el comprobante para confirmar el pedido.`
       : `✅ Si pagas en efectivo, por favor ten el valor exacto si es posible.`,
+  ];
 
-    comments?.trim()
-      ? section("📝 Comentarios") + `\n${comments.trim()}`
-      : null,
-
-    section("📤 Enviar"),
-    `Envíanos este mensaje ahora y confirmamos tu pedido 🙌`,
+  return [
+    ...headerLines,
+    ...customerSection,
+    ...serviceSection,
+    ...productsSection,
+    ...commentsSection,
+    ...sendSection,
+    ...totalsSection,
   ]
     .filter((line): line is string => line !== null && line !== undefined)
     .join("\n");

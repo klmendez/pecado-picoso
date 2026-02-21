@@ -8,7 +8,11 @@ import type { CategoryTabValue } from "../components/CategoryTabs";
 import ArmarPedidoHeader from "../components/armar-pedido/ArmarPedidoHeader";
 import ProductSelectionSection from "../components/armar-pedido/ProductSelectionSection";
 import ProductConfigSection from "../components/armar-pedido/ProductConfigSection";
-import CustomerInfoSection from "../components/armar-pedido/CustomerInfoSection";
+import CustomerInfoSection, {
+  type CustomerInfoErrors,
+  type CustomerInfoFocusRequest,
+  type CustomerInfoField,
+} from "../components/armar-pedido/CustomerInfoSection";
 import OrderPricingSidebar from "../components/armar-pedido/OrderPricingSidebar";
 import Stepper, { type Step } from "../components/armar-pedido/Stepper";
 import { useOrderItems } from "../hooks/useOrderItems";
@@ -32,7 +36,7 @@ export default function ArmarPedido() {
   const [category, setCategory] = useState<CategoryTabValue>("todos");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [service, setService] = useState<Service>("llevar");
+  const [service, setService] = useState<Service>("domicilio");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
@@ -74,6 +78,34 @@ export default function ArmarPedido() {
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const summaryOpenRef = useRef(false);
   const didMountRef = useRef(false);
+  const focusSequenceRef = useRef(0);
+  const [showCustomerErrors, setShowCustomerErrors] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<CustomerInfoFocusRequest>(null);
+
+  const customerErrors = useMemo<CustomerInfoErrors>(() => {
+    return {
+      name: !name.trim(),
+      phone: !phone.trim(),
+      barrio: service === "domicilio" ? !barrio : false,
+      address: service === "domicilio" ? !address.trim() : false,
+    };
+  }, [name, phone, service, barrio, address]);
+
+  useEffect(() => {
+    if (!showCustomerErrors) return;
+    if (!Object.values(customerErrors).some(Boolean)) {
+      setShowCustomerErrors(false);
+    }
+  }, [customerErrors, showCustomerErrors]);
+
+  const requestFocusForField = (field: CustomerInfoField) => {
+    focusSequenceRef.current += 1;
+    setFocusRequest({ field, id: focusSequenceRef.current });
+  };
+
+  const consumeFocusRequest = () => {
+    setFocusRequest(null);
+  };
 
   const scrollToStepperTop = () => {
     const anchor = scrollAnchorRef.current;
@@ -160,10 +192,15 @@ export default function ArmarPedido() {
         return;
       }
       if (!(customerOk && deliveryOk)) {
+        setShowCustomerErrors(true);
+        const firstErrorEntry = Object.entries(customerErrors).find(([, hasError]) => hasError);
+        if (firstErrorEntry) {
+          requestFocusForField(firstErrorEntry[0] as CustomerInfoField);
+        }
         setStepIndex(2);
       }
     }
-  }, [currentStepId, itemsOk, itemsConfigOk, customerOk, deliveryOk]);
+  }, [currentStepId, itemsOk, itemsConfigOk, customerOk, deliveryOk, customerErrors]);
 
   const handleSend = () => {
     if (!canSend) return;
@@ -185,7 +222,16 @@ export default function ArmarPedido() {
 
   const goToNextStep = () => {
     if (stepIndex >= STEP_SEQUENCE.length - 1) return;
-    if (!canAdvanceFromStep(currentStepId)) return;
+    if (!canAdvanceFromStep(currentStepId)) {
+      if (currentStepId === "datos") {
+        setShowCustomerErrors(true);
+        const firstErrorEntry = Object.entries(customerErrors).find(([, hasError]) => hasError);
+        if (firstErrorEntry) {
+          requestFocusForField(firstErrorEntry[0] as CustomerInfoField);
+        }
+      }
+      return;
+    }
     setStepIndex((prev) => Math.min(prev + 1, STEP_SEQUENCE.length - 1));
   };
 
@@ -307,7 +353,7 @@ export default function ArmarPedido() {
             canAdvanceFromStep("productos") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
           ].join(" ")}
         >
-          Continuar a configuración
+          Continuar a personalizar 
         </button>
       </div>
     </div>
@@ -383,6 +429,10 @@ export default function ArmarPedido() {
         filteredBarrios={filteredBarrios}
         totalBarrios={totalBarrios}
         nequiPhone={NEQUI_PHONE}
+        showErrors={showCustomerErrors}
+        errors={customerErrors}
+        focusRequest={focusRequest}
+        onFocusRequestConsumed={consumeFocusRequest}
       />
 
       {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
@@ -401,7 +451,7 @@ export default function ArmarPedido() {
           disabled={!canAdvanceFromStep("datos")}
           className={[
             "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
-            canAdvanceFromStep("datos") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
+            canAdvanceFromStep("datos") ? "text-white hover:bg-white/[0.06]" : "text-white/35",
           ].join(" ")}
         >
           Continuar al resumen
@@ -511,11 +561,13 @@ export default function ArmarPedido() {
             <button
               type="button"
               onClick={footerCTA.next.onClick}
-              disabled={footerCTA.next.disabled}
+              disabled={footerCTA.next.disabled && currentStepId !== "datos"}
               className={[
                 "h-11 flex-[1.4] rounded-full border px-4 text-sm font-black",
                 !footerCTA.next.disabled
                   ? "border-red-500/70 bg-red-800 text-white shadow-[0_10px_28px_rgba(220,38,38,0.35)] active:scale-[0.99]"
+                  : currentStepId === "datos"
+                  ? "border-red-500/60 bg-red-950 text-white/80"
                   : "border-white/10 bg-neutral-950 text-white/25 cursor-not-allowed",
               ].join(" ")}
             >
