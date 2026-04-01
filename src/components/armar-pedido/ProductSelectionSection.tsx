@@ -7,20 +7,22 @@ type Props = {
   category: CategoryTabValue;
   onChangeCategory: (value: CategoryTabValue) => void;
   selectedIds: string[];
-  onToggleProduct: (product: Product) => void;
+  selectedCountByProduct: Record<string, number>;
+  onAddProduct: (product: Product) => void;
 };
 
 export default function ProductSelectionSection({
   category,
   onChangeCategory,
   selectedIds,
-  onToggleProduct,
+  selectedCountByProduct,
+  onAddProduct,
 }: Props) {
   return (
     <section>
       <div>
         <div className="text-sm font-black">1) Elegir productos</div>
-        <div className="text-xs text-white/55">Toca para agregar o quitar.</div>
+        <div className="text-xs text-white/55">Cada toque agrega una unidad; luego puedes personalizar cada una por separado.</div>
       </div>
 
       <div className="mt-4">
@@ -28,7 +30,12 @@ export default function ProductSelectionSection({
       </div>
 
       <div className="mt-4">
-        <CatalogoCompacto selectedIds={selectedIds} onToggle={onToggleProduct} filter={category} />
+        <CatalogoCompacto
+          selectedIds={selectedIds}
+          selectedCountByProduct={selectedCountByProduct}
+          onAdd={onAddProduct}
+          filter={category}
+        />
       </div>
 
       {selectedIds.length ? (

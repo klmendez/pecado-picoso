@@ -41,11 +41,12 @@ function getFrutaFreshPrices(product: Product): {
 
 type Props = {
   selectedIds: string[];
-  onToggle: (p: Product) => void;
+  selectedCountByProduct: Record<string, number>;
+  onAdd: (p: Product) => void;
   filter: CategoryTabValue;
 };
 
-export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Props) {
+export default function CatalogoCompacto({ selectedIds, selectedCountByProduct, onAdd, filter }: Props) {
   const isSelected = (id: string) => selectedIds.includes(id);
 
   const list = PRODUCTS.filter((p) => {
@@ -65,7 +66,7 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
           <button
             key={p.id}
             type="button"
-            onClick={() => onToggle(p)}
+            onClick={() => onAdd(p)}
             className={[
               "group text-left transition",
               "border-b border-white/10 pb-3",
@@ -119,7 +120,7 @@ export default function CatalogoCompacto({ selectedIds, onToggle, filter }: Prop
                       active ? "text-white font-black" : "text-white/55",
                     ].join(" ")}
                   >
-                    {active ? "Quitar" : "Agregar"}
+                    {active ? `Agregar otro (${selectedCountByProduct[p.id] ?? 1})` : "Agregar"}
                   </span>
                 </div>
               </div>

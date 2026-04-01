@@ -42,7 +42,8 @@ export default function ArmarPedido() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
   const [comments, setComments] = useState("");
 
-  const { items, selectedIds, toggleProduct, updateItem, updateQty } = useOrderItems();
+  const { items, selectedIds, selectedCountByProduct, addProduct, updateItem, duplicateItem, removeItem } =
+    useOrderItems();
   const {
     barrio,
     setBarrio,
@@ -116,34 +117,23 @@ export default function ArmarPedido() {
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   };
 
-  const handleFocusProduct = (productId: string | null) => {
-    setActiveProductId(productId);
-    if (productId === null) {
+  const handleFocusProduct = (itemId: string | null) => {
+    setActiveProductId(itemId);
+    if (itemId === null) {
       requestAnimationFrame(() => scrollToStepperTop());
     }
   };
 
   const currentStepId = STEP_SEQUENCE[stepIndex];
 
-  const handleToggleProduct = (product: Product) => {
-    const alreadySelected = selectedIds.includes(product.id);
-    toggleProduct(product);
-    
-    if (!alreadySelected) {
-      // Si es un producto nuevo, ir al paso de configuración y activarlo
-      setStepIndex(1);
-      setActiveProductId(product.id);
-    } else {
-      // Si se quitó el producto y estaba activo, desactivarlo
-      if (activeProductId === product.id) {
-        setActiveProductId(null);
-      }
-    }
+  const handleAddProduct = (product: Product) => {
+    addProduct(product);
+    setStepIndex(1);
   };
 
-  const handleQtyChange = (productId: string, qty: number) => {
-    updateQty(productId, qty);
-    if (qty <= 0 && activeProductId === productId) {
+  const handleRemoveItem = (itemId: string) => {
+    removeItem(itemId);
+    if (activeProductId === itemId) {
       setActiveProductId(null);
     }
   };
@@ -154,13 +144,16 @@ export default function ArmarPedido() {
       return;
     }
 
-    if (activeProductId && items.some((it) => it.product.id === activeProductId)) {
+    if (!activeProductId) {
+      setActiveProductId(items[items.length - 1].id);
       return;
     }
 
-    if (activeProductId && !items.some((it) => it.product.id === activeProductId)) {
-      setActiveProductId(null);
+    if (items.some((it) => it.id === activeProductId)) {
+      return;
     }
+
+    setActiveProductId(items[items.length - 1]?.id ?? null);
   }, [items, activeProductId]);
 
   const { itemsOk, itemsConfigOk, customerOk, deliveryOk } = validation;
@@ -339,7 +332,8 @@ export default function ArmarPedido() {
         category={category}
         onChangeCategory={setCategory}
         selectedIds={selectedIds}
-        onToggleProduct={handleToggleProduct}
+        selectedCountByProduct={selectedCountByProduct}
+        onAddProduct={handleAddProduct}
       />
 
       {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
@@ -364,7 +358,8 @@ export default function ArmarPedido() {
       <ProductConfigSection
         items={items}
         updateItem={updateItem}
-        updateQty={handleQtyChange}
+        duplicateItem={duplicateItem}
+        removeItem={handleRemoveItem}
         activeProductId={activeProductId}
         onFocusProduct={handleFocusProduct}
       />
@@ -469,7 +464,7 @@ export default function ArmarPedido() {
         total={total}
         canSend={canSend}
         onSend={handleSend}
-        onRemove={(productId) => updateQty(productId, 0)}
+        onRemove={handleRemoveItem}
         sendDisabledHint={sendDisabledHint}
         checklist={checklist}
       />
@@ -617,7 +612,7 @@ export default function ArmarPedido() {
                   total={total}
                   canSend={canSend}
                   onSend={handleSend}
-                  onRemove={(productId) => updateQty(productId, 0)}
+                  onRemove={handleRemoveItem}
                   sendDisabledHint={sendDisabledHint}
                   checklist={checklist}
                 />
@@ -643,7 +638,7 @@ export default function ArmarPedido() {
                   total={total}
                   canSend={canSend}
                   onSend={handleSend}
-                  onRemove={(productId) => updateQty(productId, 0)}
+                  onRemove={handleRemoveItem}
                   sendDisabledHint={sendDisabledHint}
                   checklist={checklist}
                 />

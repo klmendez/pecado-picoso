@@ -5,14 +5,20 @@ import type { OrderItem } from "../lib/whatsapp";
 import { defaultSize } from "../components/armar-pedido/utils";
 
 type OrderItemsAction =
-  | { type: "toggle"; product: Product }
-  | { type: "update"; productId: string; patch: Partial<OrderItem> }
-  | { type: "setQty"; productId: string; qty: number };
+  | { type: "add"; product: Product }
+  | { type: "remove"; itemId: string }
+  | { type: "duplicate"; itemId: string }
+  | { type: "update"; itemId: string; patch: Partial<OrderItem> };
 
 type State = OrderItem[];
 
+function createOrderItemId() {
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function createItem(product: Product): OrderItem {
   return {
+    id: createOrderItemId(),
     product,
     qty: 1,
     version: product.category === "gomitas" ? null : null,
@@ -25,22 +31,32 @@ function createItem(product: Product): OrderItem {
 
 function reducer(state: State, action: OrderItemsAction): State {
   switch (action.type) {
-    case "toggle": {
-      const idx = state.findIndex((it) => it.product.id === action.product.id);
-      if (idx >= 0) {
-        const next = [...state];
-        next.splice(idx, 1);
-        return next;
-      }
+    case "add": {
       return [...state, createItem(action.product)];
     }
-    case "update": {
-      return state.map((it) => (it.product.id === action.productId ? { ...it, ...action.patch } : it));
+    case "remove": {
+      return state.filter((it) => it.id !== action.itemId);
     }
-    case "setQty": {
-      return state
-        .map((it) => (it.product.id === action.productId ? { ...it, qty: action.qty } : it))
-        .filter((it) => it.qty > 0);
+    case "duplicate": {
+      const idx = state.findIndex((it) => it.id === action.itemId);
+      if (idx === -1) return state;
+      const source = state[idx];
+      const duplicated: OrderItem = {
+        ...source,
+        id: createOrderItemId(),
+        qty: 1,
+        toppingIds: [...source.toppingIds],
+        extrasQty: { ...source.extrasQty },
+        extraSelections: Object.fromEntries(
+          Object.entries(source.extraSelections).map(([key, value]) => [key, [...value]]),
+        ),
+      };
+      const next = [...state];
+      next.splice(idx + 1, 0, duplicated);
+      return next;
+    }
+    case "update": {
+      return state.map((it) => (it.id === action.itemId ? { ...it, ...action.patch } : it));
     }
     default:
       return state;
@@ -50,25 +66,39 @@ function reducer(state: State, action: OrderItemsAction): State {
 export function useOrderItems(initialItems: OrderItem[] = []) {
   const [items, dispatch] = useReducer(reducer, initialItems);
 
-  const toggleProduct = useCallback((product: Product) => {
-    dispatch({ type: "toggle", product });
+  const addProduct = useCallback((product: Product) => {
+    dispatch({ type: "add", product });
   }, []);
 
-  const updateItem = useCallback((productId: string, patch: Partial<OrderItem>) => {
-    dispatch({ type: "update", productId, patch });
+  const updateItem = useCallback((itemId: string, patch: Partial<OrderItem>) => {
+    dispatch({ type: "update", itemId, patch });
   }, []);
 
-  const updateQty = useCallback((productId: string, qty: number) => {
-    dispatch({ type: "setQty", productId, qty });
+  const duplicateItem = useCallback((itemId: string) => {
+    dispatch({ type: "duplicate", itemId });
   }, []);
 
-  const selectedIds = useMemo(() => items.map((it) => it.product.id), [items]);
+  const removeItem = useCallback((itemId: string) => {
+    dispatch({ type: "remove", itemId });
+  }, []);
+
+  const selectedIds = useMemo(() => [...new Set(items.map((it) => it.product.id))], [items]);
+  const selectedCountByProduct = useMemo(
+    () =>
+      items.reduce<Record<string, number>>((acc, item) => {
+        acc[item.product.id] = (acc[item.product.id] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [items],
+  );
 
   return {
     items,
     selectedIds,
-    toggleProduct,
+    selectedCountByProduct,
+    addProduct,
     updateItem,
-    updateQty,
+    duplicateItem,
+    removeItem,
   };
 }

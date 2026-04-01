@@ -20,6 +20,7 @@ export type Topping = { id: string; name: string };
 export type Extra = { id: string; name: string };
 
 export type OrderItem = {
+  id: string;
   product: Product;
   qty: number;
 

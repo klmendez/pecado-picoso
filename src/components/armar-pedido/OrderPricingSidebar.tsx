@@ -17,7 +17,7 @@ type Props = {
   total: number;
   canSend: boolean;
   onSend: () => void;
-  onRemove: (productId: string) => void;
+  onRemove: (itemId: string) => void;
   sendDisabledHint: string;
   checklist: ChecklistItem[];
 };
@@ -50,7 +50,7 @@ export default function OrderPricingSidebar({
               const ex = extrasLine(item.extrasQty);
 
               return (
-                <div key={product.id} className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+                <div key={item.id} className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-black truncate">{product.name}</div>
@@ -79,7 +79,7 @@ export default function OrderPricingSidebar({
 
                     <button
                       type="button"
-                      onClick={() => onRemove(product.id)}
+                      onClick={() => onRemove(item.id)}
                       className="text-[10px] uppercase tracking-[0.22em] text-white/55 hover:text-white"
                     >
                       quitar

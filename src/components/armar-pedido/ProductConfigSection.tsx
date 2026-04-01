@@ -9,10 +9,11 @@ import { getAvailableSizes, maxToppingsFor, labelSize } from "./utils";
 
 type Props = {
   items: OrderItem[];
-  updateItem: (productId: string, patch: Partial<OrderItem>) => void;
-  updateQty: (productId: string, qty: number) => void;
+  updateItem: (itemId: string, patch: Partial<OrderItem>) => void;
+  duplicateItem: (itemId: string) => void;
+  removeItem: (itemId: string) => void;
   activeProductId?: string | null;
-  onFocusProduct?: (productId: string | null) => void;
+  onFocusProduct?: (itemId: string | null) => void;
 };
 
 function isItemConfigComplete(item: OrderItem) {
@@ -56,7 +57,8 @@ function buildSummary(item: OrderItem) {
 export default function ProductConfigSection({
   items,
   updateItem,
-  updateQty,
+  duplicateItem,
+  removeItem,
   activeProductId,
   onFocusProduct,
 }: Props) {
@@ -69,7 +71,7 @@ export default function ProductConfigSection({
 
   const goToNextProductByIndex = (index: number) => {
     const nextItem = items[index + 1];
-    if (nextItem) onFocusProduct?.(nextItem.product.id);
+    if (nextItem) onFocusProduct?.(nextItem.id);
     else onFocusProduct?.(null); // ✅ al final quedan todos cerrados
   };
 
@@ -129,12 +131,12 @@ export default function ProductConfigSection({
           const extrasQty = it.extrasQty ?? {};
           const extraSelections = it.extraSelections ?? {};
 
-          const isActive = activeProductId === p.id;
+          const isActive = activeProductId === it.id;
           const isComplete = isItemConfigComplete(it);
           const summary = buildSummary(it);
 
           const focusProduct = (force = false) => {
-            if (force || !isActive) onFocusProduct?.(p.id);
+            if (force || !isActive) onFocusProduct?.(it.id);
           };
 
           const goToNextProduct = () => goToNextProductByIndex(index);
@@ -144,15 +146,15 @@ export default function ProductConfigSection({
           // - Si está listo: NO se abre tocando el header (solo con botón Editar)
           const handleHeaderClick = () => {
             if (isComplete) return; // bloquea abrir por accidente
-            onFocusProduct?.(isActive ? null : p.id);
+            onFocusProduct?.(isActive ? null : it.id);
           };
 
           return (
             <div
-              key={p.id}
+              key={it.id}
               ref={(node) => {
-                if (node) cardRefs.current[p.id] = node;
-                else delete cardRefs.current[p.id];
+                if (node) cardRefs.current[it.id] = node;
+                else delete cardRefs.current[it.id];
               }}
               className={[
                 "relative scroll-mt-28 border-t border-white/10 pb-4 pt-5 pl-8 transition-colors duration-300",
@@ -212,7 +214,7 @@ export default function ProductConfigSection({
                   {!isActive && isComplete ? (
                     <button
                       type="button"
-                      onClick={() => onFocusProduct?.(p.id)}
+                      onClick={() => onFocusProduct?.(it.id)}
                       className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-black text-white/80 transition hover:border-white/40 hover:text-white"
                     >
                       Editar
@@ -225,19 +227,20 @@ export default function ProductConfigSection({
                       type="button"
                       className="h-8 w-8 border border-white/10 bg-transparent transition hover:border-white/30 hover:bg-white/[0.05]"
                       onClick={() => {
-                        focusProduct();
-                        updateQty(p.id, Math.max(0, it.qty - 1));
+                        removeItem(it.id);
                       }}
                     >
                       −
                     </button>
-                    <div className="w-8 text-center text-sm font-black">{it.qty}</div>
+                    <div className="w-12 text-center text-[11px] font-black uppercase tracking-[0.18em] text-white/70">
+                      x1
+                    </div>
                     <button
                       type="button"
                       className="h-8 w-8 border border-white/10 bg-transparent transition hover:border-white/30 hover:bg-white/[0.05]"
                       onClick={() => {
                         focusProduct();
-                        updateQty(p.id, it.qty + 1);
+                        duplicateItem(it.id);
                       }}
                     >
                       +
@@ -259,7 +262,7 @@ export default function ProductConfigSection({
                             type="button"
                             onClick={() => {
                               focusProduct();
-                              updateItem(p.id, { size: s });
+                              updateItem(it.id, { size: s });
                             }}
                             className={[
                               "rounded-full border border-white/12 px-3 py-1 text-[11px] font-black transition",
@@ -284,7 +287,7 @@ export default function ProductConfigSection({
                           value={it.version ?? null}
                           onChange={(v) => {
                             focusProduct();
-                            updateItem(p.id, { version: v });
+                            updateItem(it.id, { version: v });
                           }}
                         />
                       ) : null}
@@ -294,7 +297,7 @@ export default function ProductConfigSection({
                           value={it.toppingIds}
                           onChange={(next) => {
                             focusProduct();
-                            updateItem(p.id, { toppingIds: next });
+                            updateItem(it.id, { toppingIds: next });
                           }}
                           max={maxT}
                           min={isGomitas && maxT > 0 ? 1 : 0}
@@ -322,7 +325,7 @@ export default function ProductConfigSection({
                           if (nextSelectionIds.length) nextExtraSelections[extra.id] = nextSelectionIds;
                           else delete nextExtraSelections[extra.id];
 
-                          updateItem(p.id, {
+                          updateItem(it.id, {
                             extrasQty: nextExtrasQty,
                             extraSelections: nextExtraSelections,
                           });
