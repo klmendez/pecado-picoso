@@ -5,7 +5,13 @@ import { TOPPINGS } from "../../data/toppings";
 import { EXTRAS } from "../../data/extras";
 
 export function getAvailableSizes(product: Product): Size[] {
-  if (product.category === "gomitas") return product.sizes;
+  if (product.category === "gomitas") {
+    return product.sizes.filter((s) => {
+      const a = product.prices.ahogada?.[s] ?? 0;
+      const p = product.prices.picosa?.[s] ?? 0;
+      return a > 0 || p > 0;
+    });
+  }
   if (isFixedPrice(product.prices)) return product.sizes ?? [];
   const entries = Object.entries(product.prices.porSize ?? {}) as Array<[Size, number | undefined]>;
   return entries.filter(([, v]) => typeof v === "number" && v > 0).map(([s]) => s);

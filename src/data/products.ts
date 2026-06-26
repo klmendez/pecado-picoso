@@ -14,6 +14,7 @@ export type Version = "ahogada" | "picosa";
 type BaseProduct = {
   id: string;
   category: Category;
+  categoryId?: string;
   name: string;
   description: string;
   badge?: string;

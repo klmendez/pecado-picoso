@@ -1,5 +1,5 @@
-// src/pages/ArmarPedido.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation as useRouterLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { Product } from "../data/products";
 import { NEQUI_PHONE } from "../data/constants";
 import { type PaymentMethod, type Service } from "../lib/whatsapp";
@@ -7,33 +7,36 @@ import { type PaymentMethod, type Service } from "../lib/whatsapp";
 import type { CategoryTabValue } from "../components/CategoryTabs";
 import ArmarPedidoHeader from "../components/armar-pedido/ArmarPedidoHeader";
 import ProductSelectionSection from "../components/armar-pedido/ProductSelectionSection";
-import ProductConfigSection from "../components/armar-pedido/ProductConfigSection";
+import ProductConfigSection, { isItemConfigComplete } from "../components/armar-pedido/ProductConfigSection";
 import CustomerInfoSection, {
   type CustomerInfoErrors,
   type CustomerInfoFocusRequest,
   type CustomerInfoField,
+  type LocationState,
 } from "../components/armar-pedido/CustomerInfoSection";
 import OrderPricingSidebar from "../components/armar-pedido/OrderPricingSidebar";
 import Stepper, { type Step } from "../components/armar-pedido/Stepper";
+import CartDrawer from "../components/CartDrawer";
 import { useOrderItems } from "../hooks/useOrderItems";
 import { useBarrioSelection } from "../hooks/useBarrioSelection";
 import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
-import { useOrderMessage } from "../hooks/useOrderMessage";
+import { useStoreProducts } from "../hooks/useStoreProducts";
 
-const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
+const STEP_SEQUENCE = ["productos", "configuracion", "datos"] as const;
 type StepId = (typeof STEP_SEQUENCE)[number];
 
-const WHATSAPP_DESTINATION = "573178371144";
-
 const STEP_META: Record<StepId, { title: string; description: string }> = {
-  productos: { title: "Productos", description: "Elige y agrega" },
-  configuracion: { title: "Configura", description: "Ajusta tus selecciones" },
-  datos: { title: "Datos", description: "Contacto y pago" },
-  resumen: { title: "Resumen", description: "Revisa y envía" },
+  productos: { title: "Elige", description: "Agrega productos" },
+  configuracion: { title: "Personaliza", description: "Ajusta cada uno" },
+  datos: { title: "Completa y envía", description: "Datos, resumen y envío" },
 };
 
 export default function ArmarPedido() {
-  const [category, setCategory] = useState<CategoryTabValue>("todos");
+  const navigate = useNavigate();
+  const routerLocation = useRouterLocation();
+  const [searchParams] = useSearchParams();
+  const initialCategory = searchParams.get("categoria") || "todos";
+  const [category, setCategory] = useState<CategoryTabValue>(initialCategory);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [service, setService] = useState<Service>("domicilio");
@@ -42,8 +45,9 @@ export default function ArmarPedido() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Transferencia");
   const [comments, setComments] = useState("");
 
-  const { items, selectedIds, selectedCountByProduct, addProduct, updateItem, duplicateItem, removeItem } =
+  const { items, selectedIds, selectedCountByProduct, addProduct, updateItem, duplicateItem, removeItem, removeLastOfProduct } =
     useOrderItems();
+  const { products: storeProducts, categories: storeCategories } = useStoreProducts();
   const {
     barrio,
     setBarrio,
@@ -57,31 +61,36 @@ export default function ArmarPedido() {
   const { pricedItems, subtotal, delivery, total, checklist, canSend, sendDisabledHint, validation } =
     useOrderPricingValidation({ items, service, barrio, address, name, phone });
 
-  const { openWhatsApp } = useOrderMessage({
-    name,
-    phone,
-    service,
-    barrio,
-    address,
-    reference,
-    paymentMethod,
-    comments,
-    items,
-    subtotal,
-    delivery,
-    total,
-    destination: WHATSAPP_DESTINATION,
-  });
-
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [summaryOpen, setSummaryOpen] = useState(false);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
-  const summaryOpenRef = useRef(false);
+  const isSyncingRouteRef = useRef(false);
   const didMountRef = useRef(false);
   const focusSequenceRef = useRef(0);
+  const manualProductCloseRef = useRef(false);
   const [showCustomerErrors, setShowCustomerErrors] = useState(false);
+  const [showConfigWarning, setShowConfigWarning] = useState(false);
   const [focusRequest, setFocusRequest] = useState<CustomerInfoFocusRequest>(null);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [customerLocation, setCustomerLocation] = useState<LocationState>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const cat = searchParams.get("categoria");
+    if (cat) setCategory(cat);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsMobile(event.matches);
+    };
+
+    handleChange(mq);
+    mq.addEventListener("change", handleChange as (ev: MediaQueryListEvent) => void);
+    return () => mq.removeEventListener("change", handleChange as (ev: MediaQueryListEvent) => void);
+  }, []);
 
   const customerErrors = useMemo<CustomerInfoErrors>(() => {
     return {
@@ -118,17 +127,25 @@ export default function ArmarPedido() {
   };
 
   const handleFocusProduct = (itemId: string | null) => {
-    setActiveProductId(itemId);
     if (itemId === null) {
+      manualProductCloseRef.current = true;
+      setActiveProductId(null);
       requestAnimationFrame(() => scrollToStepperTop());
+    } else {
+      manualProductCloseRef.current = false;
+      setActiveProductId(itemId);
     }
   };
 
   const currentStepId = STEP_SEQUENCE[stepIndex];
 
   const handleAddProduct = (product: Product) => {
+    manualProductCloseRef.current = false;
     addProduct(product);
     setStepIndex(1);
+    if (isMobile) {
+      navigate("/armar/personalizar");
+    }
   };
 
   const handleRemoveItem = (itemId: string) => {
@@ -141,22 +158,28 @@ export default function ArmarPedido() {
   useEffect(() => {
     if (!items.length) {
       setActiveProductId(null);
+      manualProductCloseRef.current = false;
       return;
     }
 
     if (!activeProductId) {
+      if (manualProductCloseRef.current) return;
       setActiveProductId(items[items.length - 1].id);
       return;
     }
 
-    if (items.some((it) => it.id === activeProductId)) {
-      return;
-    }
+    if (items.some((it) => it.id === activeProductId)) return;
 
     setActiveProductId(items[items.length - 1]?.id ?? null);
   }, [items, activeProductId]);
 
   const { itemsOk, itemsConfigOk, customerOk, deliveryOk } = validation;
+
+  useEffect(() => {
+    if (showConfigWarning && itemsConfigOk) {
+      setShowConfigWarning(false);
+    }
+  }, [showConfigWarning, itemsConfigOk]);
 
   useEffect(() => {
     if (currentStepId === "configuracion" && !itemsOk) {
@@ -174,30 +197,17 @@ export default function ArmarPedido() {
         return;
       }
     }
-
-    if (currentStepId === "resumen") {
-      if (!itemsOk) {
-        setStepIndex(0);
-        return;
-      }
-      if (!itemsConfigOk) {
-        setStepIndex(1);
-        return;
-      }
-      if (!(customerOk && deliveryOk)) {
-        setShowCustomerErrors(true);
-        const firstErrorEntry = Object.entries(customerErrors).find(([, hasError]) => hasError);
-        if (firstErrorEntry) {
-          requestFocusForField(firstErrorEntry[0] as CustomerInfoField);
-        }
-        setStepIndex(2);
-      }
-    }
-  }, [currentStepId, itemsOk, itemsConfigOk, customerOk, deliveryOk, customerErrors]);
+  }, [currentStepId, itemsOk, itemsConfigOk]);
 
   const handleSend = () => {
     if (!canSend) return;
-    openWhatsApp();
+    setCartDrawerOpen(true);
+  };
+
+  const handleClearCart = () => {
+    items.forEach(item => removeItem(item.id));
+    setActiveProductId(null);
+    setStepIndex(0);
   };
 
   const canAdvanceFromStep = (id: StepId) => {
@@ -207,7 +217,7 @@ export default function ArmarPedido() {
       case "configuracion":
         return itemsConfigOk;
       case "datos":
-        return customerOk && deliveryOk;
+        return canSend;
       default:
         return false;
     }
@@ -216,6 +226,14 @@ export default function ArmarPedido() {
   const goToNextStep = () => {
     if (stepIndex >= STEP_SEQUENCE.length - 1) return;
     if (!canAdvanceFromStep(currentStepId)) {
+      if (currentStepId === "configuracion") {
+        setShowConfigWarning(true);
+        const firstIncomplete = items.find((it) => !isItemConfigComplete(it));
+        if (firstIncomplete) {
+          manualProductCloseRef.current = false;
+          setActiveProductId(firstIncomplete.id);
+        }
+      }
       if (currentStepId === "datos") {
         setShowCustomerErrors(true);
         const firstErrorEntry = Object.entries(customerErrors).find(([, hasError]) => hasError);
@@ -225,6 +243,7 @@ export default function ArmarPedido() {
       }
       return;
     }
+    setShowConfigWarning(false);
     setStepIndex((prev) => Math.min(prev + 1, STEP_SEQUENCE.length - 1));
   };
 
@@ -244,16 +263,10 @@ export default function ArmarPedido() {
   });
 
   useEffect(() => {
-    summaryOpenRef.current = summaryOpen;
-  }, [summaryOpen]);
-
-  useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true;
       return;
     }
-
-    if (summaryOpenRef.current) return;
 
     const anchor = scrollAnchorRef.current;
     if (!anchor) return;
@@ -265,17 +278,36 @@ export default function ArmarPedido() {
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [stepIndex]);
 
-  // Bloquear scroll del body cuando el resumen está abierto (mejor UX móvil)
   useEffect(() => {
-    if (!summaryOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [summaryOpen]);
+    if (!isMobile) {
+      if (routerLocation.pathname !== "/armar") {
+        navigate("/armar", { replace: true });
+      }
+      return;
+    }
 
-  // Texto y acciones del “footer sticky” mobile según el paso
+    const targetPath = stepIndex === 0 ? "/armar" : "/armar/personalizar";
+    if (routerLocation.pathname !== targetPath) {
+      isSyncingRouteRef.current = true;
+      navigate(targetPath, { replace: true });
+    }
+  }, [isMobile, stepIndex, routerLocation.pathname, navigate]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    if (isSyncingRouteRef.current) {
+      isSyncingRouteRef.current = false;
+      return;
+    }
+
+    const path = routerLocation.pathname;
+    if (path === "/armar" && stepIndex !== 0) {
+      setStepIndex(0);
+    } else if (path.startsWith("/armar/personalizar") && stepIndex === 0) {
+      setStepIndex(1);
+    }
+  }, [isMobile, routerLocation.pathname, stepIndex]);
+
   const footerCTA = useMemo(() => {
     const back =
       stepIndex > 0
@@ -286,7 +318,7 @@ export default function ArmarPedido() {
       return {
         back,
         next: {
-          label: "Personalizar producto",
+          label: "Personalizar",
           onClick: goToNextStep,
           disabled: !canAdvanceFromStep("productos"),
         },
@@ -295,27 +327,15 @@ export default function ArmarPedido() {
 
     if (currentStepId === "configuracion") {
       return {
-        back: { label: "Agregar productos", onClick: () => setStepIndex(0), disabled: false },
+        back: { label: "Productos", onClick: () => setStepIndex(0), disabled: false },
         next: {
-          label: "Continuar",
+          label: "Datos y envío",
           onClick: goToNextStep,
           disabled: !canAdvanceFromStep("configuracion"),
         },
       };
     }
 
-    if (currentStepId === "datos") {
-      return {
-        back,
-        next: {
-          label: "Ir al resumen",
-          onClick: goToNextStep,
-          disabled: !canAdvanceFromStep("datos"),
-        },
-      };
-    }
-
-    // resumen
     return {
       back,
       next: {
@@ -334,20 +354,22 @@ export default function ArmarPedido() {
         selectedIds={selectedIds}
         selectedCountByProduct={selectedCountByProduct}
         onAddProduct={handleAddProduct}
+        onRemoveLastOfProduct={removeLastOfProduct}
+        extraProducts={storeProducts}
+        categories={storeCategories}
       />
 
-      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
       <div className="hidden sm:flex sm:justify-end">
         <button
           type="button"
           onClick={goToNextStep}
           disabled={!canAdvanceFromStep("productos")}
           className={[
-            "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
-            canAdvanceFromStep("productos") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
+            "border border-gray-300 px-6 py-2 text-sm font-semibold transition",
+            canAdvanceFromStep("productos") ? "text-black hover:border-black" : "text-gray-300 cursor-not-allowed",
           ].join(" ")}
         >
-          Continuar a personalizar 
+          Personalizar
         </button>
       </div>
     </div>
@@ -362,45 +384,36 @@ export default function ArmarPedido() {
         removeItem={handleRemoveItem}
         activeProductId={activeProductId}
         onFocusProduct={handleFocusProduct}
+        onGoToNext={goToNextStep}
+        showIncompleteWarning={showConfigWarning}
       />
 
-      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
       <div className="hidden sm:flex sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={() => setStepIndex(0)}
-          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+          className="border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
         >
-          Agregar otro producto
+          + Agregar más
         </button>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={goToPreviousStep}
-            className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
-          >
-            Volver a productos
-          </button>
-
-          <button
-            type="button"
-            onClick={goToNextStep}
-            disabled={!canAdvanceFromStep("configuracion")}
-            className={[
-              "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
-              canAdvanceFromStep("configuracion") ? "text-white hover:bg-white/[0.06]" : "text-white/35 cursor-not-allowed",
-            ].join(" ")}
-          >
-            Continuar
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={goToNextStep}
+          disabled={!canAdvanceFromStep("configuracion")}
+          className={[
+            "border border-gray-300 px-6 py-2 text-sm font-semibold transition",
+            canAdvanceFromStep("configuracion") ? "text-black hover:border-black" : "text-gray-300 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Datos y envío
+        </button>
       </div>
     </div>
   );
 
   const renderDatosStep = () => (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-8">
       <CustomerInfoSection
         name={name}
         setName={setName}
@@ -428,55 +441,31 @@ export default function ArmarPedido() {
         errors={customerErrors}
         focusRequest={focusRequest}
         onFocusRequestConsumed={consumeFocusRequest}
+        location={customerLocation}
+        onLocationChange={setCustomerLocation}
       />
 
-      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
-      <div className="hidden sm:flex sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={goToPreviousStep}
-          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
-        >
-          Volver a configuración
-        </button>
-
-        <button
-          type="button"
-          onClick={goToNextStep}
-          disabled={!canAdvanceFromStep("datos")}
-          className={[
-            "rounded-full border border-white/25 px-6 py-2 text-sm font-black",
-            canAdvanceFromStep("datos") ? "text-white hover:bg-white/[0.06]" : "text-white/35",
-          ].join(" ")}
-        >
-          Continuar al resumen
-        </button>
+      <div className="border-t border-gray-200 pt-6">
+        <OrderPricingSidebar
+          items={pricedItems}
+          subtotal={subtotal}
+          delivery={delivery}
+          total={total}
+          canSend={canSend}
+          onSend={handleSend}
+          onRemove={handleRemoveItem}
+          sendDisabledHint={sendDisabledHint}
+          checklist={checklist}
+        />
       </div>
-    </div>
-  );
 
-  const renderResumenStep = () => (
-    <div className="mx-auto max-w-xl space-y-6">
-      <OrderPricingSidebar
-        items={pricedItems}
-        subtotal={subtotal}
-        delivery={delivery}
-        total={total}
-        canSend={canSend}
-        onSend={handleSend}
-        onRemove={handleRemoveItem}
-        sendDisabledHint={sendDisabledHint}
-        checklist={checklist}
-      />
-
-      {/* Desktop CTA (en móvil lo maneja el footer sticky) */}
       <div className="hidden sm:flex sm:justify-start">
         <button
           type="button"
           onClick={goToPreviousStep}
-          className="rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/70 hover:border-white/40 hover:text-white"
+          className="border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
         >
-          Volver a datos
+          Volver a personalización
         </button>
       </div>
     </div>
@@ -490,163 +479,116 @@ export default function ArmarPedido() {
         return renderConfigStep();
       case "datos":
         return renderDatosStep();
-      case "resumen":
-        return renderResumenStep();
       default:
         return null;
     }
   })();
 
-  return (
-    <div className="bg-neutral-950 text-white pt-20 sm:pt-24 lg:pt-28">
+  const mobileDetailMode = isMobile && currentStepId !== "productos";
+
+  const desktopOrCatalogLayout = (
+    <div className="bg-crema text-neutral-900 pt-[56px] sm:pt-20 lg:pt-24">
       <ArmarPedidoHeader selectedCount={items.length} />
 
-      <div ref={scrollAnchorRef} className="mx-auto max-w-5xl px-4 pb-24 sm:pb-16">
-        {/* Stepper sticky (mobile) */}
-        <div className="sticky top-[72px] z-40 -mx-4 px-4 py-3 bg-neutral-950/95 backdrop-blur border-b border-white/10 sm:static sm:top-auto sm:z-auto sm:-mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-0 sm:border-b-0">
+      <div ref={scrollAnchorRef} className="mx-auto max-w-5xl px-4 pb-20 sm:pb-16">
+        <div className="sticky top-[56px] z-40 -mx-4 px-4 py-1.5 bg-crema/95 backdrop-blur border-b border-gray-100 sm:static sm:top-auto sm:z-auto sm:-mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-0 sm:border-b-0">
           <Stepper steps={steps} onSelectStep={handleSelectStep} />
         </div>
 
-        {/* En desktop mantenemos botón normal; en móvil usamos FAB */}
-        <div className="hidden sm:mt-4 sm:flex sm:justify-end">
-          <button
-            type="button"
-            onClick={() => setSummaryOpen(true)}
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white"
-          >
-            <span aria-hidden>🛒</span>
-            Ver resumen
-          </button>
-        </div>
-
-        {/* Contenido principal con spacing móvil más compacto */}
-        <div className="mt-5 sm:mt-8">{stepContent}</div>
+        <div className="mt-3 sm:mt-8">{stepContent}</div>
       </div>
-
-      {/* FAB móvil */}
-      <button
-        type="button"
-        onClick={() => setSummaryOpen(true)}
-        className="sm:hidden fixed right-4 bottom-[88px] z-50 inline-flex items-center justify-center h-12 w-12 rounded-full border border-white/20 bg-neutral-950/95 backdrop-blur shadow-[0_12px_30px_rgba(0,0,0,0.55)] active:scale-95"
-        aria-label="Ver resumen"
-      >
-        <span aria-hidden className="text-lg">
-          🛒
-        </span>
-      </button>
-
-      {/* Footer sticky mobile (CTA siempre visible) */}
-      <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-neutral-950/95 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={footerCTA.back.onClick}
-              disabled={footerCTA.back.disabled}
-              className={[
-                "h-11 flex-1 rounded-full border px-4 text-sm font-black",
-                footerCTA.back.disabled
-                  ? "border-white/10 bg-neutral-950 text-white/25 cursor-not-allowed"
-                  : "border-red-700/50 bg-red-950 text-white active:scale-[0.99]",
-              ].join(" ")}
-            >
-              {footerCTA.back.label}
-            </button>
-
-            <button
-              type="button"
-              onClick={footerCTA.next.onClick}
-              disabled={footerCTA.next.disabled && currentStepId !== "datos"}
-              className={[
-                "h-11 flex-[1.4] rounded-full border px-4 text-sm font-black",
-                !footerCTA.next.disabled
-                  ? "border-red-500/70 bg-red-800 text-white shadow-[0_10px_28px_rgba(220,38,38,0.35)] active:scale-[0.99]"
-                  : currentStepId === "datos"
-                  ? "border-red-500/60 bg-red-950 text-white/80"
-                  : "border-white/10 bg-neutral-950 text-white/25 cursor-not-allowed",
-              ].join(" ")}
-            >
-              {footerCTA.next.label}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Resumen: bottom sheet en mobile, modal centrado en desktop */}
-      {summaryOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/80"
-          onClick={() => setSummaryOpen(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className={[
-              "absolute left-0 right-0",
-              "sm:inset-0 sm:flex sm:items-center sm:justify-center sm:px-4 sm:py-10",
-              "bottom-0 sm:bottom-auto",
-            ].join(" ")}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Mobile sheet */}
-            <div className="sm:hidden w-full rounded-t-3xl border border-white/10 bg-neutral-950/98 shadow-[0_-20px_60px_rgba(0,0,0,0.65)]">
-              <div className="px-4 pt-3 pb-2">
-                <div className="mx-auto h-1.5 w-10 rounded-full bg-white/15" aria-hidden />
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="text-sm font-black">Resumen del pedido</div>
-                  <button
-                    type="button"
-                    onClick={() => setSummaryOpen(false)}
-                    className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/70"
-                  >
-                    ✕ Cerrar
-                  </button>
-                </div>
-              </div>
-
-              <div className="max-h-[72vh] overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-                <OrderPricingSidebar
-                  items={pricedItems}
-                  subtotal={subtotal}
-                  delivery={delivery}
-                  total={total}
-                  canSend={canSend}
-                  onSend={handleSend}
-                  onRemove={handleRemoveItem}
-                  sendDisabledHint={sendDisabledHint}
-                  checklist={checklist}
-                />
-              </div>
-            </div>
-
-            {/* Desktop modal */}
-            <div className="hidden sm:block relative w-full max-w-xl">
-              <button
-                type="button"
-                onClick={() => setSummaryOpen(false)}
-                className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70 hover:border-white/40 hover:text-white"
-              >
-                <span aria-hidden>✕</span>
-                Cerrar
-              </button>
-
-              <div className="max-h-[75vh] overflow-y-auto rounded-3xl border border-white/10 bg-neutral-950/95 p-5 shadow-[0_25px_60px_rgba(0,0,0,0.55)]">
-                <OrderPricingSidebar
-                  items={pricedItems}
-                  subtotal={subtotal}
-                  delivery={delivery}
-                  total={total}
-                  canSend={canSend}
-                  onSend={handleSend}
-                  onRemove={handleRemoveItem}
-                  sendDisabledHint={sendDisabledHint}
-                  checklist={checklist}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
+  );
+
+  const mobileDetailLayout = (
+    <div className="bg-crema text-neutral-900 min-h-dvh flex flex-col pt-[56px]">
+      <div className="fixed left-0 right-0 top-[56px] z-40 flex items-center justify-between gap-3 border-b border-gray-100 bg-crema/95 px-4 py-1.5 backdrop-blur sm:hidden">
+        <button
+          type="button"
+          onClick={footerCTA.back.onClick}
+          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500"
+        >
+          <span aria-hidden>←</span>
+          {footerCTA.back.label}
+        </button>
+
+        <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-900">
+          {STEP_META[currentStepId].title}
+        </div>
+
+        <div className="w-12" />
+      </div>
+
+      <div className="flex-1 px-4 pt-[36px]">
+        {stepContent}
+      </div>
+
+      <div className="sticky bottom-0 z-40 flex items-center gap-2 border-t border-gray-200 bg-crema px-4 py-3">
+        <button
+          type="button"
+          onClick={footerCTA.back.onClick}
+          disabled={footerCTA.back.disabled}
+          className={[
+            "flex-1 border px-3 py-2.5 text-[10px] font-medium uppercase tracking-[0.15em]",
+            footerCTA.back.disabled
+              ? "border-gray-200 text-gray-300"
+              : "border-gray-300 text-gray-600 active:bg-gray-100",
+          ].join(" ")}
+        >
+          {footerCTA.back.label}
+        </button>
+
+        <button
+          type="button"
+          onClick={footerCTA.next.onClick}
+          disabled={footerCTA.next.disabled}
+          className={[
+            "flex-[1.5] border px-3 py-2.5 text-[10px] font-medium uppercase tracking-[0.15em]",
+            !footerCTA.next.disabled
+              ? currentStepId === "datos"
+                ? "border-green-600 bg-green-600 text-white active:bg-green-700"
+                : "border-gray-900 bg-gray-900 text-white active:bg-black"
+              : "border-gray-200 text-gray-300",
+          ].join(" ")}
+        >
+          {footerCTA.next.label}
+        </button>
+      </div>
+    </div>
+  );
+
+  const cartDrawerInitialLocation = useMemo(() => {
+    if (!customerLocation) return null;
+    return {
+      lat: customerLocation.lat,
+      lng: customerLocation.lng,
+      accuracy: customerLocation.accuracy,
+      timestamp: customerLocation.timestamp ?? Date.now(),
+    };
+  }, [customerLocation]);
+
+  return (
+    <>
+      {mobileDetailMode ? mobileDetailLayout : desktopOrCatalogLayout}
+
+      <CartDrawer
+        isOpen={cartDrawerOpen}
+        onClose={() => setCartDrawerOpen(false)}
+        items={items}
+        subtotal={subtotal}
+        delivery={delivery}
+        total={total}
+        name={name}
+        phone={phone}
+        service={service}
+        barrio={barrio}
+        address={address}
+        reference={reference}
+        paymentMethod={paymentMethod}
+        comments={comments}
+        initialLocation={cartDrawerInitialLocation}
+        onClearCart={handleClearCart}
+      />
+    </>
   );
 }

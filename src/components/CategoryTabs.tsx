@@ -1,33 +1,38 @@
-export type CategoryTabValue = "todos" | "gomitas" | "frutafresh";
+export type CategoryTabValue = "todos" | string;
 
-const LABELS: Record<CategoryTabValue, string> = {
-  todos: "Todo",
-  gomitas: "Gomitas",
-  frutafresh: "FrutaFresh",
-};
+type CategoryInfo = { id: string; name: string };
 
 export default function CategoryTabs({
   value,
   onChange,
+  categories,
 }: {
   value: CategoryTabValue;
   onChange: (value: CategoryTabValue) => void;
+  categories?: CategoryInfo[];
 }) {
+  const tabs: { id: CategoryTabValue; label: string }[] = [
+    { id: "todos", label: "Todo" },
+    ...(categories?.map((c) => ({ id: c.id, label: c.name })) ?? []),
+  ];
+
   return (
-    <div className="inline-flex rounded-2xl border border-neutral-800 bg-neutral-900 p-1 text-sm font-bold">
-      {(Object.keys(LABELS) as CategoryTabValue[]).map((tab) => {
-        const active = value === tab;
+    <div role="tablist" aria-label="Categorías de productos" className="inline-flex border border-gray-200 bg-white p-1 text-sm">
+      {tabs.map((tab) => {
+        const active = value === tab.id;
         return (
           <button
-            key={tab}
+            key={tab.id}
             type="button"
-            onClick={() => onChange(tab)}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.id)}
             className={[
-              "px-4 py-2 rounded-2xl transition",
-              active ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-300 hover:text-white",
+              "px-4 py-1.5 transition-all text-sm font-medium",
+              active ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-900",
             ].join(" ")}
           >
-            {LABELS[tab]}
+            {tab.label}
           </button>
         );
       })}

@@ -3,12 +3,17 @@ import CatalogoCompacto from "../CatalogoCompacto";
 import CategoryTabs from "../CategoryTabs";
 import type { CategoryTabValue } from "../CategoryTabs";
 
+type StoreCategory = { id: string; name: string };
+
 type Props = {
   category: CategoryTabValue;
   onChangeCategory: (value: CategoryTabValue) => void;
   selectedIds: string[];
   selectedCountByProduct: Record<string, number>;
   onAddProduct: (product: Product) => void;
+  onRemoveLastOfProduct: (productId: string) => void;
+  extraProducts?: Product[];
+  categories?: StoreCategory[];
 };
 
 export default function ProductSelectionSection({
@@ -17,33 +22,31 @@ export default function ProductSelectionSection({
   selectedIds,
   selectedCountByProduct,
   onAddProduct,
+  onRemoveLastOfProduct,
+  extraProducts,
+  categories,
 }: Props) {
   return (
     <section>
-      <div>
-        <div className="text-sm font-black">1) Elegir productos</div>
-        <div className="text-xs text-white/55">Cada toque agrega una unidad; luego puedes personalizar cada una por separado.</div>
+      <div className="flex items-center justify-between gap-3">
+        <CategoryTabs value={category} onChange={onChangeCategory} categories={categories} />
       </div>
 
-      <div className="mt-4">
-        <CategoryTabs value={category} onChange={onChangeCategory} />
-      </div>
-
-      <div className="mt-4">
+      <div className="mt-3 sm:mt-4">
         <CatalogoCompacto
           selectedIds={selectedIds}
           selectedCountByProduct={selectedCountByProduct}
           onAdd={onAddProduct}
+          onRemoveLast={onRemoveLastOfProduct}
           filter={category}
+          extraProducts={extraProducts}
         />
       </div>
 
       {selectedIds.length ? (
-        <div className="mt-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-emerald-300/60 bg-emerald-400/10 text-[10px] font-black">
-            ✓
-          </span>
-          Listo para configuración
+        <div className="mt-5 flex items-center gap-2 text-sm text-emerald-600">
+          <span>✓</span>
+          <span>{selectedIds.length} {selectedIds.length === 1 ? "producto seleccionado" : "productos seleccionados"}</span>
         </div>
       ) : null}
     </section>

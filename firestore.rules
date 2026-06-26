@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Coleccion de pedidos: cualquiera puede crear un pedido (clientes)
+    // Lectura/actualizacion/eliminacion abiertas para el panel de admin
+    match /pedidos/{pedido} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+
+    // Colecciones de admin: categorias y productos
+    // (abiertas para migracion; ajustar a request.auth != null en produccion si se requiere)
+    match /categorias/{doc} {
+      allow read, write: if true;
+    }
+    match /productos/{doc} {
+      allow read, write: if true;
+    }
+
+    // Fallback para otras colecciones futuras
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

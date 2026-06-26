@@ -6,6 +6,7 @@ import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import CatalogoPage from "./pages/CatalogoPage";
 import ArmarPedido from "./pages/ArmarPedido";
+import AdminDashboard from "./pages/AdminDashboard";
 import Terminos from "./pages/Terminos";
 import Contacto from "./pages/Contacto";
 
@@ -19,24 +20,35 @@ function ScrollToTop() {
   return null;
 }
 
+function AppLayout() {
+  const location = useLocation();
+  const isAdmin = location.pathname === "/admin";
+
+  return (
+    <div className={`min-h-dvh flex flex-col ${isAdmin ? "bg-gray-50 text-neutral-900" : "bg-crema text-neutral-900"}`}>
+      <ScrollToTop />
+      {!isAdmin && <Navbar />}
+      <main className="flex-1">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/catalogo" element={<CatalogoPage />} />
+          <Route path="/armar" element={<ArmarPedido />} />
+          <Route path="/armar/personalizar" element={<ArmarPedido />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/terminos" element={<Terminos />} />
+          <Route path="/contacto" element={<Contacto />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      {!isAdmin && <Footer />}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-dvh flex flex-col bg-neutral-950 text-neutral-100">
-        <ScrollToTop />
-        <Navbar />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/catalogo" element={<CatalogoPage />} />
-            <Route path="/armar" element={<ArmarPedido />} />
-            <Route path="/terminos" element={<Terminos />} />
-            <Route path="/contacto" element={<Contacto />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <AppLayout />
     </BrowserRouter>
   );
 }

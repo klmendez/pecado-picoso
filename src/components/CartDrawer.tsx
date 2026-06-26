@@ -1,0 +1,390 @@
+import { useState, useEffect } from 'react';
+import { X, MapPin, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { OrderService } from '../services/orderService';
+import { LocationService } from '../services/locationService';
+import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
+import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
+import type { CustomerLocation } from '../types/order';
+import type { Barrio } from '../data/barrios';
+import { cop } from '../lib/format';
+
+interface CartDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items: OrderItem[];
+  subtotal: number;
+  delivery: number;
+  total: number;
+  name: string;
+  phone: string;
+  service: Service;
+  barrio: Barrio | null;
+  address: string;
+  reference: string;
+  paymentMethod: PaymentMethod;
+  comments: string;
+  initialLocation?: CustomerLocation | null;
+  onClearCart: () => void;
+}
+
+export default function CartDrawer({
+  isOpen,
+  onClose,
+  items,
+  subtotal,
+  delivery,
+  total,
+  name,
+  phone,
+  service,
+  barrio,
+  address,
+  reference,
+  paymentMethod,
+  comments,
+  initialLocation = null,
+  onClearCart
+}: CartDrawerProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentLocation, setCurrentLocation] = useState<CustomerLocation | null>(initialLocation);
+  const [isTrackingLocation, setIsTrackingLocation] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialLocation) {
+      setCurrentLocation(initialLocation);
+    }
+  }, [initialLocation]);
+
+  // Verificar permisos de ubicación al abrir el drawer
+  useEffect(() => {
+    if (isOpen && navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        setLocationPermission(result.state);
+      });
+    }
+  }, [isOpen]);
+
+  // Obtener ubicación inicial
+  const handleGetLocation = async () => {
+    try {
+      setIsTrackingLocation(true);
+      const location = await LocationService.getCurrentLocation();
+      setCurrentLocation(location);
+      setLocationPermission('granted');
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationPermission('denied');
+    } finally {
+      setIsTrackingLocation(false);
+    }
+  };
+
+  // Iniciar seguimiento en tiempo real
+  const startLocationTracking = () => {
+    if (!createdOrderId) return;
+
+    LocationService.startWatchingLocation(
+      async (location) => {
+        setCurrentLocation(location);
+        // Actualizar ubicación en Firestore solo si hay movimiento significativo
+        if (currentLocation && LocationService.hasSignificantMovement(currentLocation, location, 10)) {
+          try {
+            await OrderService.updateCustomerLocation(createdOrderId, location);
+          } catch (error) {
+            console.error('Error updating location:', error);
+          }
+        }
+      },
+      (error) => {
+        console.error('Location tracking error:', error);
+      }
+    );
+  };
+
+  // Detener seguimiento
+  const stopLocationTracking = () => {
+    LocationService.stopWatchingLocation();
+  };
+
+  // Validar datos del formulario
+  const validateForm = (): boolean => {
+    if (!name.trim() || !phone.trim()) {
+      setErrorMessage('Nombre y teléfono son obligatorios');
+      return false;
+    }
+
+    if (service === 'domicilio' && (!barrio || !address.trim())) {
+      setErrorMessage('Para domicilio necesitas seleccionar barrio y dirección');
+      return false;
+    }
+
+    if (items.length === 0) {
+      setErrorMessage('Agrega al menos un producto');
+      return false;
+    }
+
+    if (total <= 0) {
+      setErrorMessage('El total debe ser mayor a $0');
+      return false;
+    }
+
+    return true;
+  };
+
+  // Crear pedido en Firestore
+  const handleSubmitOrder = async () => {
+    if (!validateForm()) {
+      setSubmitStatus('error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
+    setErrorMessage('');
+
+    try {
+      const numeroOrden = OrderService.generateOrderNumber();
+      
+      const orderData = {
+        numeroOrden,
+        items,
+        total,
+        subtotal,
+        delivery,
+        cliente: {
+          nombres: name.trim(),
+          celular: phone.trim(),
+          direccion: service === 'domicilio' ? address.trim() : '',
+          coordenadas: currentLocation || undefined,
+          mapsLink: currentLocation ? LocationService.generateMapsLink(currentLocation) : undefined,
+          ubicacionTiempoReal: currentLocation ? [currentLocation] : undefined
+        },
+        formaPago: paymentMethod,
+        servicio: service,
+        estado: 'no_pagado' as const
+      };
+
+      const orderId = await OrderService.createOrder(orderData);
+      setCreatedOrderId(orderId);
+      setSubmitStatus('success');
+      
+      // Iniciar seguimiento de ubicación si está disponible
+      if (currentLocation && service === 'domicilio') {
+        startLocationTracking();
+      }
+
+      // Enviar notificación al negocio sobre nuevo pedido
+      const orderWithId = { 
+        ...orderData, 
+        id: orderId,
+        createdAt: new Date() as any,
+        updatedAt: new Date() as any
+      };
+      WhatsAppNotificationService.sendNewOrderNotification(orderWithId);
+
+      // Limpiar carrito después de un delay
+      setTimeout(() => {
+        onClearCart();
+        onClose();
+        setSubmitStatus('idle');
+        setCreatedOrderId(null);
+        stopLocationTracking();
+      }, 3000);
+
+    } catch (error) {
+      console.error('Error creating order:', error);
+      setErrorMessage('Error al crear el pedido. Intenta nuevamente.');
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* Overlay */}
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+        aria-label="Cerrar carrito"
+      />
+      
+      {/* Drawer */}
+      <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl">
+        <div className="flex h-full flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-gray-200 p-4">
+            <h2 className="text-lg font-bold text-black">Finalizar Pedido</h2>
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-black"
+              aria-label="Cerrar carrito"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Resumen del pedido */}
+            <div className="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <h3 className="mb-3 text-sm font-bold text-black">Resumen del Pedido</h3>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-gray-500">
+                  <span>Productos ({items.length})</span>
+                  <span>{cop(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-gray-500">
+                  <span>Envío</span>
+                  <span>{cop(delivery)}</span>
+                </div>
+                <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-black">
+                  <span>Total</span>
+                  <span>{cop(total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Datos del cliente */}
+            <div className="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <h3 className="mb-3 text-sm font-bold text-black">Datos de Entrega</h3>
+              
+              <div className="space-y-2 text-sm text-gray-500">
+                <div><span className="font-semibold">Nombre:</span> {name}</div>
+                <div><span className="font-semibold">Teléfono:</span> {phone}</div>
+                <div><span className="font-semibold">Servicio:</span> {service === 'domicilio' ? 'Domicilio' : 'Para llevar'}</div>
+                {service === 'domicilio' && (
+                  <>
+                    <div><span className="font-semibold">Barrio:</span> {barrio?.name || 'No seleccionado'}</div>
+                    <div><span className="font-semibold">Dirección:</span> {address}</div>
+                    {reference && <div><span className="font-semibold">Referencia:</span> {reference}</div>}
+                  </>
+                )}
+                <div><span className="font-semibold">Pago:</span> {paymentMethod}</div>
+                {comments && <div><span className="font-semibold">Comentarios:</span> {comments}</div>}
+              </div>
+            </div>
+
+            {/* Ubicación en tiempo real */}
+            {service === 'domicilio' && (
+              <div className="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-black">
+                  <MapPin size={16} />
+                  Ubicación en Tiempo Real
+                </h3>
+                
+                {locationPermission === 'denied' && (
+                  <div className="flex items-center gap-2 text-sm text-red-600">
+                    <AlertCircle size={16} />
+                    Permisos de ubicación denegados
+                  </div>
+                )}
+                
+                {locationPermission === 'prompt' && (
+                  <button
+                    onClick={handleGetLocation}
+                    disabled={isTrackingLocation}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-black hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {isTrackingLocation ? (
+                      <>
+                        <Clock size={16} className="animate-spin" />
+                        Obteniendo ubicación...
+                      </>
+                    ) : (
+                      <>
+                        <MapPin size={16} />
+                        Compartir Ubicación
+                      </>
+                    )}
+                  </button>
+                )}
+                
+                {currentLocation && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <CheckCircle size={16} />
+                      Ubicación obtenida
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Lat: {currentLocation.lat.toFixed(6)}, Lng: {currentLocation.lng.toFixed(6)}
+                      {currentLocation.accuracy && (
+                        <div>Precisión: ±{Math.round(currentLocation.accuracy)}m</div>
+                      )}
+                    </div>
+                    {createdOrderId && (
+                      <div className="text-xs text-blue-600">
+                        📍 Compartiendo ubicación en tiempo real
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Estado del envío */}
+            {submitStatus === 'success' && (
+              <div className="mb-4 rounded-2xl border border-green-300 bg-green-50 p-4">
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle size={20} />
+                  <span className="font-semibold">¡Pedido creado exitosamente!</span>
+                </div>
+                <p className="mt-2 text-sm text-green-600">
+                  Tu pedido ha sido guardado y pronto recibirás confirmación por WhatsApp.
+                </p>
+                {service === 'domicilio' && currentLocation && (
+                  <p className="mt-1 text-xs text-green-600">
+                    Tu ubicación se está compartiendo en tiempo real para facilitar la entrega.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Error */}
+            {submitStatus === 'error' && errorMessage && (
+              <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 p-4">
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertCircle size={20} />
+                  <span className="font-semibold">Error</span>
+                </div>
+                <p className="mt-2 text-sm text-red-600">{errorMessage}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-gray-200 p-4">
+            <button
+              onClick={handleSubmitOrder}
+              disabled={isSubmitting || submitStatus === 'success'}
+              className="w-full rounded-full bg-red-600 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Clock size={16} className="animate-spin" />
+                  Creando pedido...
+                </div>
+              ) : submitStatus === 'success' ? (
+                '✅ Pedido creado'
+              ) : (
+                `Crear Pedido - ${cop(total)}`
+              )}
+            </button>
+            
+            <p className="mt-2 text-center text-xs text-gray-500">
+              Al crear el pedido aceptas nuestros términos y condiciones
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

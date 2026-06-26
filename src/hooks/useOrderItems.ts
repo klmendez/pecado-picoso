@@ -7,6 +7,7 @@ import { defaultSize } from "../components/armar-pedido/utils";
 type OrderItemsAction =
   | { type: "add"; product: Product }
   | { type: "remove"; itemId: string }
+  | { type: "removeLastOfProduct"; productId: string }
   | { type: "duplicate"; itemId: string }
   | { type: "update"; itemId: string; patch: Partial<OrderItem> };
 
@@ -21,7 +22,7 @@ function createItem(product: Product): OrderItem {
     id: createOrderItemId(),
     product,
     qty: 1,
-    version: product.category === "gomitas" ? null : null,
+    version: product.category === "gomitas" ? "ahogada" : null,
     size: defaultSize(product),
     toppingIds: [],
     extrasQty: {},
@@ -36,6 +37,11 @@ function reducer(state: State, action: OrderItemsAction): State {
     }
     case "remove": {
       return state.filter((it) => it.id !== action.itemId);
+    }
+    case "removeLastOfProduct": {
+      const lastIdx = state.map((it) => it.product.id).lastIndexOf(action.productId);
+      if (lastIdx === -1) return state;
+      return [...state.slice(0, lastIdx), ...state.slice(lastIdx + 1)];
     }
     case "duplicate": {
       const idx = state.findIndex((it) => it.id === action.itemId);
@@ -82,6 +88,10 @@ export function useOrderItems(initialItems: OrderItem[] = []) {
     dispatch({ type: "remove", itemId });
   }, []);
 
+  const removeLastOfProduct = useCallback((productId: string) => {
+    dispatch({ type: "removeLastOfProduct", productId });
+  }, []);
+
   const selectedIds = useMemo(() => [...new Set(items.map((it) => it.product.id))], [items]);
   const selectedCountByProduct = useMemo(
     () =>
@@ -100,5 +110,6 @@ export function useOrderItems(initialItems: OrderItem[] = []) {
     updateItem,
     duplicateItem,
     removeItem,
+    removeLastOfProduct,
   };
 }

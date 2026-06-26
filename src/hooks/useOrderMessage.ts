@@ -5,6 +5,7 @@ import type { OrderItem, PaymentMethod, Service } from "../lib/whatsapp";
 import { buildCode, buildWhatsAppMessage, waLink } from "../lib/whatsapp";
 import { EXTRAS } from "../data/extras";
 import { TOPPINGS } from "../data/toppings";
+import { WHATSAPP_PHONE } from "../data/constants";
 
 type Params = {
   name: string;
@@ -36,7 +37,7 @@ export function useOrderMessage(params: Params) {
     subtotal,
     delivery,
     total,
-    destination = "573178371144",
+    destination = `57${WHATSAPP_PHONE}`,
   } = params;
 
   const openWhatsApp = useCallback(() => {
