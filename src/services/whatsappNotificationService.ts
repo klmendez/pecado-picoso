@@ -3,7 +3,7 @@ import { cop } from '../lib/format';
 import { WHATSAPP_PHONE, NEQUI_PHONE } from '../data/constants';
 
 export class WhatsAppNotificationService {
-  private static readonly BUSINESS_PHONE = import.meta.env.VITE_WHATSAPP_BUSINESS_PHONE || `57${WHATSAPP_PHONE}`;
+  private static readonly BUSINESS_PHONE = `57${WHATSAPP_PHONE}`;
 
   // Mensajes predefinidos para diferentes estados
   private static readonly STATUS_MESSAGES: Record<OrderStatus, (order: PedidoFirestore & { id: string }) => string> = {
