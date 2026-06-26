@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useRef, useState } from "react";
-import { ArrowRight, Truck, ShieldCheck, Heart, MessageCircle, ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Truck, ShieldCheck, Heart, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStoreProducts } from "../hooks/useStoreProducts";
 import type { Product } from "../data/products";
 import { waLink } from "../data/constants";

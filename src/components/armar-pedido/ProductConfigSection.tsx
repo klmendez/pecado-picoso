@@ -88,11 +88,6 @@ export default function ProductConfigSection({
   const allComplete = items.every(isItemConfigComplete);
   const showSummary = allComplete && !activeProductId;
 
-  const goToNextProductByIndex = (index: number) => {
-    const nextItem = items[index + 1];
-    if (nextItem) onFocusProduct?.(nextItem.id);
-    else onFocusProduct?.(null);
-  };
 
   useEffect(() => {
     if (!activeProductId) {
@@ -162,7 +157,7 @@ export default function ProductConfigSection({
                       ) : null}
                     </div>
                     <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
-                      <div>{labelSize(it.size)} · {isGomitas ? it.version : "—"}</div>
+                      <div>{it.size ? labelSize(it.size) : "—"} · {isGomitas ? it.version : "—"}</div>
                       {tops.length ? <div>Toppings: {tops.join(", ")}</div> : null}
                       {ex.length ? <div>Extras: {ex.join(", ")}</div> : null}
                     </div>
@@ -192,7 +187,7 @@ export default function ProductConfigSection({
         </div>
       ) : (
         <div className="sm:mt-5 divide-y divide-gray-200">
-          {items.map((it, index) => {
+          {items.map((it) => {
             const p = it.product;
             const isGomitas = p.category === "gomitas";
             const canHaveToppings = p.category === "gomitas" || p.category === "frutafresh";
@@ -215,7 +210,6 @@ export default function ProductConfigSection({
               if (force || !isActive) onFocusProduct?.(it.id);
             };
 
-            const goToNextProduct = () => goToNextProductByIndex(index);
 
             const handleHeaderClick = () => {
               if (isComplete) return;
