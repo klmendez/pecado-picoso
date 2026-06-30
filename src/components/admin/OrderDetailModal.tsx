@@ -263,9 +263,25 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
                     <span className="text-black">{cop(order.total)}</span>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Método de pago:</span>
-                    <span className="text-black">{order.formaPago}</span>
+                  <div className="border-t border-gray-200 pt-3">
+                    <span className="text-gray-500 block mb-2">Método de pago:</span>
+                    {order.detallesPago && order.detallesPago.length > 0 ? (
+                      <div className="space-y-2">
+                        {order.detallesPago.map((pago, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
+                            <span className="text-black">{pago.metodo}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-black">{cop(pago.monto)}</span>
+                              {order.servicio === 'domicilio' && pago.entregadoDomiciliario && (
+                                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Al domiciliario</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-black">{order.formaPago}</span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, MapPin, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 import { OrderService } from '../services/orderService';
+import { ClientService } from '../services/clientService';
 import { LocationService } from '../services/locationService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
@@ -159,9 +160,12 @@ export default function CartDrawer({
           nombres: name.trim(),
           celular: phone.trim(),
           direccion: service === 'domicilio' ? address.trim() : '',
-          coordenadas: currentLocation || undefined,
-          mapsLink: currentLocation ? LocationService.generateMapsLink(currentLocation) : undefined,
-          ubicacionTiempoReal: currentLocation ? [currentLocation] : undefined
+          barrio: service === 'domicilio' && barrio ? barrio.name : undefined,
+          ...(currentLocation ? {
+            coordenadas: currentLocation,
+            mapsLink: LocationService.generateMapsLink(currentLocation),
+            ubicacionTiempoReal: [currentLocation]
+          } : {})
         },
         formaPago: paymentMethod,
         servicio: service,
@@ -176,6 +180,16 @@ export default function CartDrawer({
       if (currentLocation && service === 'domicilio') {
         startLocationTracking();
       }
+
+      // Guardar/actualizar cliente en la base de datos
+      ClientService.upsertClient({
+        celular: phone.trim(),
+        nombres: name.trim(),
+        direccion: service === 'domicilio' ? address.trim() : undefined,
+        barrio: barrio?.name,
+        referencia: reference?.trim() || undefined,
+        totalPedido: total
+      });
 
       // Enviar notificación al negocio sobre nuevo pedido
       const orderWithId = { 

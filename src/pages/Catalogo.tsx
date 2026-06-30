@@ -52,13 +52,13 @@ function priceLine(p: Product) {
   if (p.category === "gomitas") {
     const gv = getGomitasMinByVersion(p);
     const parts: string[] = [];
-    if (gv.ahogada != null) parts.push(`Ahogada desde ${cop(gv.ahogada)}`);
-    if (gv.picosa != null) parts.push(`Picosa desde ${cop(gv.picosa)}`);
+    if (gv.ahogada != null) parts.push(`Ahogada ${cop(gv.ahogada)}`);
+    if (gv.picosa != null) parts.push(`Picosa ${cop(gv.picosa)}`);
     return parts.length ? parts.join(" • ") : "Precio por confirmar";
   }
 
   const ff = getFrutaFreshPrices(p);
-  if (ff.fijo != null) return `Precio ${cop(ff.fijo)}`;
+  if (ff.fijo != null) return `${cop(ff.fijo)}`;
   const parts: string[] = [];
   if (ff.pequeno != null) parts.push(`Pequeño ${cop(ff.pequeno)}`);
   if (ff.mediano != null) parts.push(`Mediano ${cop(ff.mediano)}`);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Plus, Minus, Trash2 } from 'lucide-react';
 import { OrderService } from '../../services/orderService';
-import type { PedidoFirestore, OrderStatus } from '../../types/order';
+import type { PedidoFirestore, OrderStatus, PaymentDetail } from '../../types/order';
 import type { PaymentMethod, Service } from '../../lib/whatsapp';
 import { cop } from '../../lib/format';
 import { BARRIOS } from '../../data/barrios';
@@ -39,6 +39,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
       nombres: order.cliente.nombres,
       celular: order.cliente.celular,
       direccion: order.cliente.direccion || '',
+      barrio: order.cliente.barrio || '',
       mapsLink: order.cliente.mapsLink || ''
     },
     items: [...order.items],
@@ -52,30 +53,36 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
   });
 
   const [selectedBarrio, setSelectedBarrio] = useState<Barrio | null>(
-    BARRIOS.find(b => b.name === order.cliente.direccion?.split(',')[0]) || null
+    BARRIOS.find(b => b.name === order.cliente.barrio) || null
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [usarPagosMixtos, setUsarPagosMixtos] = useState(!!order.detallesPago);
+  const [detallesPago, setDetallesPago] = useState<PaymentDetail[]>(
+    order.detallesPago || [{ metodo: 'Efectivo', monto: order.total, entregadoDomiciliario: false }]
+  );
 
-  // Recalcular totales cuando cambien los items o el servicio
+  // Solo recalcular delivery cuando cambia el tipo de servicio
   useEffect(() => {
-    const newSubtotal = editedOrder.items.reduce((sum, item) => {
-      // Aquí deberías calcular el precio real del item
-      // Por ahora usamos un precio base
-      const basePrice = 15000; // Precio base placeholder
-      return sum + (basePrice * item.qty);
-    }, 0);
+    setEditedOrder(prev => {
+      let newDelivery = prev.delivery;
 
-    const newDelivery = editedOrder.servicio === 'domicilio' && selectedBarrio ? selectedBarrio.price || 0 : 0;
-    const newTotal = newSubtotal + newDelivery;
+      if (prev.servicio !== 'domicilio') {
+        // Si no es domicilio, envío = 0
+        newDelivery = 0;
+      } else if (order.servicio === 'domicilio') {
+        // Si el pedido original ya era domicilio, mantener el delivery original
+        newDelivery = order.delivery;
+      } else if (selectedBarrio) {
+        // Si cambió de llevar/local a domicilio, usar el barrio seleccionado
+        newDelivery = selectedBarrio.price || 0;
+      }
 
-    setEditedOrder(prev => ({
-      ...prev,
-      subtotal: newSubtotal,
-      delivery: newDelivery,
-      total: newTotal
-    }));
-  }, [editedOrder.items, editedOrder.servicio, selectedBarrio]);
+      const newTotal = prev.subtotal + newDelivery;
+
+      return { ...prev, delivery: newDelivery, total: newTotal };
+    });
+  }, [editedOrder.servicio, selectedBarrio, order.servicio, order.delivery]);
 
   const handleSave = async () => {
     try {
@@ -100,6 +107,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
         cliente: editedOrder.cliente,
         items: editedOrder.items,
         formaPago: editedOrder.formaPago,
+        detallesPago: usarPagosMixtos ? detallesPago : undefined,
         servicio: editedOrder.servicio,
         estado: editedOrder.estado,
         notaAdmin: editedOrder.notaAdmin,
@@ -206,17 +214,98 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
 
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Método de Pago</label>
-                    <select
-                      value={editedOrder.formaPago}
-                      onChange={(e) => setEditedOrder(prev => ({ ...prev, formaPago: e.target.value as PaymentMethod }))}
-                      className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
-                    >
-                      {PAYMENT_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-2 flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={usarPagosMixtos}
+                          onChange={(e) => setUsarPagosMixtos(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700">Usar pagos mixtos</span>
+                      </label>
+                    </div>
+                    
+                    {!usarPagosMixtos ? (
+                      <select
+                        value={editedOrder.formaPago}
+                        onChange={(e) => setEditedOrder(prev => ({ ...prev, formaPago: e.target.value as PaymentMethod }))}
+                        className="mt-2 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
+                      >
+                        {PAYMENT_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {detallesPago.map((pago, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                            <select
+                              value={pago.metodo}
+                              onChange={(e) => {
+                                const newDetalles = [...detallesPago];
+                                newDetalles[idx].metodo = e.target.value as PaymentMethod;
+                                setDetallesPago(newDetalles);
+                              }}
+                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                            >
+                              {PAYMENT_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              value={pago.monto}
+                              onChange={(e) => {
+                                const newDetalles = [...detallesPago];
+                                newDetalles[idx].monto = Number(e.target.value);
+                                setDetallesPago(newDetalles);
+                              }}
+                              placeholder="Monto"
+                              className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
+                            />
+                            {editedOrder.servicio === 'domicilio' && (
+                              <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                                <input
+                                  type="checkbox"
+                                  checked={pago.entregadoDomiciliario || false}
+                                  onChange={(e) => {
+                                    const newDetalles = [...detallesPago];
+                                    newDetalles[idx].entregadoDomiciliario = e.target.checked;
+                                    setDetallesPago(newDetalles);
+                                  }}
+                                  className="w-3 h-3"
+                                />
+                                <span>Al domiciliario</span>
+                              </label>
+                            )}
+                            {detallesPago.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setDetallesPago(detallesPago.filter((_, i) => i !== idx))}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setDetallesPago([...detallesPago, { metodo: 'Efectivo', monto: 0, entregadoDomiciliario: false }])}
+                          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          <Plus size={14} /> Agregar método de pago
+                        </button>
+                        <div className="text-xs text-gray-500 mt-2">
+                          Total pagos: {cop(detallesPago.reduce((sum, p) => sum + p.monto, 0))} / Total pedido: {cop(editedOrder.total)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -268,22 +357,36 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-500">Barrio (para cálculo de envío)</label>
-                        <select
-                          value={selectedBarrio?.id || ''}
-                          onChange={(e) => {
-                            const barrio = BARRIOS.find(b => b.id === e.target.value) || null;
-                            setSelectedBarrio(barrio);
-                          }}
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
-                        >
-                          <option value="">Seleccionar barrio</option>
-                          {BARRIOS.map(barrio => (
-                            <option key={barrio.id} value={barrio.id}>
-                              {barrio.name} - {barrio.price ? cop(barrio.price) : 'Por confirmar'}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="block text-sm font-medium text-gray-500">Barrio</label>
+                        {editedOrder.cliente.barrio ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-black">
+                              {editedOrder.cliente.barrio} — Envío: {cop(order.delivery)}
+                            </span>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedBarrio?.id || ''}
+                            onChange={(e) => {
+                              const barrio = BARRIOS.find(b => b.id === e.target.value) || null;
+                              setSelectedBarrio(barrio);
+                              if (barrio) {
+                                setEditedOrder(prev => ({
+                                  ...prev,
+                                  cliente: { ...prev.cliente, barrio: barrio.name }
+                                }));
+                              }
+                            }}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
+                          >
+                            <option value="">Seleccionar barrio</option>
+                            {BARRIOS.map(barrio => (
+                              <option key={barrio.id} value={barrio.id}>
+                                {barrio.name} - {barrio.price ? cop(barrio.price) : 'Por confirmar'}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     </>
                   )}

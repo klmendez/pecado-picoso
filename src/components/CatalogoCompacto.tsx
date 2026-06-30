@@ -21,6 +21,28 @@ function getMinPrice(product: Product): number | null {
   return all.length ? Math.min(...all) : null;
 }
 
+function getPriceDescription(product: Product): string {
+  if (product.category === "gomitas") {
+    const ahogada = Math.min(...Object.values(product.prices.ahogada).filter((v): v is number => v > 0));
+    const picosa = Math.min(...Object.values(product.prices.picosa).filter((v): v is number => v > 0));
+    const parts: string[] = [];
+    if (ahogada > 0) parts.push(`Ahogada ${cop(ahogada)}`);
+    if (picosa > 0) parts.push(`Picosa ${cop(picosa)}`);
+    return parts.length ? parts.join(" • ") : "Precio por confirmar";
+  }
+
+  const prices: any = product.prices;
+  if ("fijo" in prices && typeof prices.fijo === "number" && prices.fijo > 0) {
+    return cop(prices.fijo);
+  }
+  const porSize = prices.porSize as Partial<Record<Size, number>> | undefined;
+  const parts: string[] = [];
+  if (porSize?.pequeno) parts.push(`Pequeño ${cop(porSize.pequeno)}`);
+  if (porSize?.mediano) parts.push(`Mediano ${cop(porSize.mediano)}`);
+  if (porSize?.grande) parts.push(`Grande ${cop(porSize.grande)}`);
+  return parts.length ? parts.join(" • ") : "Precio por confirmar";
+}
+
 function getDetailText(p: Product): string | null {
   const anyP = p as any;
   if (Array.isArray(anyP.ingredients) && anyP.ingredients.length) return anyP.ingredients.join(", ");
@@ -102,9 +124,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                     {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
                   </span>
                   <h3 className="mt-1 text-base sm:text-lg font-medium text-gray-900 leading-tight">{p.name}</h3>
-                  {minPrice != null ? (
-                    <p className="mt-1.5 text-sm font-semibold text-gray-900">Desde {cop(minPrice)}</p>
-                  ) : null}
+                  <p className="mt-1.5 text-sm font-semibold text-gray-900">{getPriceDescription(p)}</p>
                   <p className="mt-2 text-[10px] text-gray-400">Toca para ver más</p>
                 </div>
               </div>

@@ -8,21 +8,31 @@ export function getBasePrice(product: Product | null, version: Version | null, s
 
   if (product.category === "gomitas") {
     if (!version || !size) return 0;
-    return product.prices[version]?.[size] ?? 0;
+    const price = product.prices[version]?.[size];
+    // Retorna el precio si es > 0, sino intenta la otra versión
+    if (typeof price === "number" && price > 0) return price;
+    // Si el precio es 0 o undefined, intenta la otra versión
+    const otherVersion = version === "ahogada" ? "picosa" : "ahogada";
+    const otherPrice = product.prices[otherVersion]?.[size];
+    if (typeof otherPrice === "number" && otherPrice > 0) return otherPrice;
+    return price ?? 0;
   }
 
   const { prices } = product;
 
+  // Fruta Fresh: primero intenta precio fijo
   if (isFixedPrice(prices)) {
     return prices.fijo;
   }
 
+  // Luego intenta por tamaño
   if (size && prices.porSize?.[size]) {
     return prices.porSize[size] ?? 0;
   }
 
+  // Si no hay tamaño pero hay porSize, retorna el primer precio disponible
   if (prices.porSize) {
-    const first = Object.values(prices.porSize).find((value): value is number => typeof value === "number");
+    const first = Object.values(prices.porSize).find((value): value is number => typeof value === "number" && value > 0);
     if (typeof first === "number") return first;
   }
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Product, Size } from "../data/products";
+import { ProductService } from "../services/productService";
 import type { FirestoreProduct } from "../services/productService";
+import { CategoryService } from "../services/categoryService";
 import type { FirestoreCategory } from "../services/categoryService";
 
 export type StoreCategory = {
@@ -20,28 +22,25 @@ export function useStoreProducts() {
     setLoading(true);
     setError(null);
     try {
-      const [{ ProductService }, { CategoryService }] = await Promise.all([
-        import("../services/productService"),
-        import("../services/categoryService"),
-      ]);
-
       const [rawProducts, rawCategories] = await Promise.all([
         ProductService.getProducts(),
         CategoryService.getCategories(),
       ]);
 
-      setCategories(
-        rawCategories.map((c: FirestoreCategory) => ({
-          id: c.id!,
-          name: c.name,
-          description: c.description,
-          image: c.image,
-        }))
-      );
+      const storeCats = rawCategories.map((c: FirestoreCategory) => ({
+        id: c.id!,
+        name: c.name,
+        description: c.description,
+        image: c.image,
+      }));
+      setCategories(storeCats);
+
+      // Crear Map para búsqueda O(1) en lugar de O(n)
+      const catMap = new Map(rawCategories.map(c => [c.id, c]));
 
       // Map Firestore products to store Product type
       const mapped: Product[] = rawProducts.map((fp: FirestoreProduct) => {
-        const cat = rawCategories.find((c: FirestoreCategory) => c.id === fp.categoryId);
+        const cat = catMap.get(fp.categoryId);
         const catName = (cat?.name ?? "").toLowerCase();
         const isGomitas = catName.includes("gomita") || catName.includes("goma");
 
@@ -74,11 +73,14 @@ export function useStoreProducts() {
                 picosa: { pequeno: fallback, mediano: 0, grande: 0 },
               };
 
+          const rawSizes = (fp.sizes as Size[]) ?? [];
+          const sizes = rawSizes.length > 0 ? rawSizes : ["pequeno" as Size];
+
           return {
             ...base,
             category: "gomitas" as const,
             toppingsIncludedMax: fp.toppingsIncludedMax ?? 4,
-            sizes: (fp.sizes as Size[]) ?? ["pequeno"],
+            sizes,
             prices,
           };
         }

@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut } from 'lucide-react';
+import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut, Users } from 'lucide-react';
 import { getAuth, signOut } from 'firebase/auth';
 
 interface AdminLayoutProps {
-  activeSection: 'pedidos' | 'estadisticas' | 'productos' | 'categorias';
-  onChangeSection: (s: 'pedidos' | 'estadisticas' | 'productos' | 'categorias') => void;
+  activeSection: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias';
+  onChangeSection: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias') => void;
   onExportCSV?: () => void;
   children: React.ReactNode;
 }
 
 const sections = [
   { id: 'pedidos' as const, label: 'Pedidos', icon: Package },
+  { id: 'clientes' as const, label: 'Clientes', icon: Users },
   { id: 'categorias' as const, label: 'Categorías', icon: Package },
   { id: 'productos' as const, label: 'Productos', icon: Package },
   { id: 'estadisticas' as const, label: 'Estadísticas', icon: BarChart3 },
@@ -19,6 +20,7 @@ const sections = [
 
 const sectionTitles: Record<string, string> = {
   pedidos: 'Pedidos',
+  clientes: 'Clientes',
   categorias: 'Categorías',
   productos: 'Productos',
   estadisticas: 'Estadísticas',

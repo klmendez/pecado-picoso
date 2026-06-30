@@ -1,6 +1,12 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
 
+export interface PaymentDetail {
+  metodo: PaymentMethod;
+  monto: number;
+  entregadoDomiciliario?: boolean; // Solo aplica para domicilio
+}
+
 export interface CustomerLocation {
   lat: number;
   lng: number;
@@ -12,6 +18,7 @@ export interface CustomerInfo {
   nombres: string;
   celular: string;
   direccion: string;
+  barrio?: string;
   coordenadas?: CustomerLocation;
   mapsLink?: string;
   ubicacionTiempoReal?: CustomerLocation[];
@@ -33,6 +40,7 @@ export interface PedidoFirestore {
   
   // Configuración del pedido
   formaPago: PaymentMethod;
+  detallesPago?: PaymentDetail[]; // Pagos mixtos (opcional, si existe reemplaza formaPago)
   servicio: Service;
   estado: OrderStatus;
   
@@ -62,6 +70,7 @@ export interface OrderUpdate {
   cliente?: Partial<CustomerInfo>;
   items?: OrderItem[];
   formaPago?: PaymentMethod;
+  detallesPago?: PaymentDetail[];
   servicio?: Service;
   estado?: OrderStatus;
   notaAdmin?: string;

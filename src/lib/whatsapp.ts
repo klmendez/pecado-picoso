@@ -47,7 +47,7 @@ export function formatServiceLabel(service: Service) {
     ? "Domicilio"
     : service === "llevar"
     ? "Para llevar"
-    : "En el local (Próximamente)";
+    : "Consumir en el local";
 }
 
 export function formatBarrioLine(service: Service, barrio: Barrio | null) {

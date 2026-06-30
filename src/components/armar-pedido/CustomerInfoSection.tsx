@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { User, Phone, MapPin, Truck, Store, CreditCard, Banknote, MessageSquare, Navigation, X, CheckCircle2, Search, ExternalLink, History, Plus } from "lucide-react";
 
 import type { Barrio } from "../../data/barrios";
 import type { PaymentMethod, Service } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
 import { LocationService } from "../../services/locationService";
+import { ClientService, type ClientAddress } from "../../services/clientService";
 
 export type CustomerInfoField = "name" | "phone" | "barrio" | "address";
 export type CustomerInfoErrors = Record<CustomerInfoField, boolean>;
@@ -80,6 +82,40 @@ export default function CustomerInfoSection({
 }: Props) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<ClientAddress[]>([]);
+  const [clientFound, setClientFound] = useState(false);
+  const [addingNewAddress, setAddingNewAddress] = useState(false);
+  const phoneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Buscar cliente cuando cambia el teléfono
+  useEffect(() => {
+    if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current);
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length < 7) {
+      setSavedAddresses([]);
+      setClientFound(false);
+      return;
+    }
+
+    phoneDebounceRef.current = setTimeout(async () => {
+      const client = await ClientService.getClientByPhone(cleanPhone);
+      if (client) {
+        setClientFound(true);
+        setSavedAddresses(client.direcciones || []);
+        if (!name.trim() && client.nombres) {
+          setName(client.nombres);
+        }
+      } else {
+        setClientFound(false);
+        setSavedAddresses([]);
+      }
+    }, 600);
+
+    return () => {
+      if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current);
+    };
+  }, [phone]);
 
   const handleShareLocation = useCallback(async () => {
     setLocationLoading(true);
@@ -121,141 +157,270 @@ export default function CustomerInfoSection({
   const hasErrors = Object.values(errors).some(Boolean);
 
   const labelClass = (errored: boolean) =>
-    `text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px] ${errored ? "text-red-600" : "text-gray-500"}`;
+    `text-[10px] font-bold uppercase tracking-wider sm:text-[11px] ${errored ? "text-red-600" : "text-gray-500"}`;
 
   const inputClass = (errored: boolean) =>
     [
-      "mt-1 w-full border bg-transparent px-3 py-2 text-[13px] outline-none sm:text-sm",
+      "mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none transition",
       errored
-        ? "border-red-500/70 focus:border-red-400/80 focus:ring-2 focus:ring-red-500/30"
+        ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
         : "border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-200",
     ].join(" ");
 
   return (
-    <section className="border-t border-gray-200 pt-6">
-      <div className="text-[13px] font-black uppercase tracking-[0.16em] text-gray-700 sm:text-sm sm:tracking-[0.18em]">
-        3) Datos y envío
-      </div>
-
-      <div className="mt-1 text-[11px] leading-relaxed text-gray-500 sm:text-xs">
-        Elige si quieres que llevemos tu pedido a domicilio o si prefieres recogerlo tú.
-        Completa luego tus datos para que podamos contactarte y entregar sin contratiempos.
+    <section className="pt-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">Datos y envío</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Completa tus datos para que podamos contactarte y entregar sin contratiempos.
+        </p>
       </div>
 
       {showErrors && hasErrors ? (
-        <div className="mt-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
-          Llena estos datos para continuar.
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+          <X size={16} className="shrink-0" />
+          Completa los campos marcados para continuar.
         </div>
       ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
-        <div className="col-span-2 sm:col-span-1">
-          <label htmlFor="customer-name" className={labelClass(showErrors && errors.name)}>Nombre</label>
-          <input
-            id="customer-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass(showErrors && errors.name)}
-            placeholder="Tu nombre"
-          />
+      {/* Datos personales */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+            <User size={14} className="text-white" />
+          </div>
+          <h3 className="text-sm font-bold text-gray-900">Datos personales</h3>
         </div>
-        <div className="col-span-2 sm:col-span-1">
-          <label htmlFor="customer-phone" className={labelClass(showErrors && errors.phone)}>Teléfono</label>
-          <input
-            id="customer-phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className={inputClass(showErrors && errors.phone)}
-            placeholder="+57 3xx xxx xxxx"
-          />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="customer-name" className={labelClass(showErrors && errors.name)}>
+              <User size={12} className="inline mr-1 -mt-0.5" />Nombre
+            </label>
+            <input
+              id="customer-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass(showErrors && errors.name)}
+              placeholder="Tu nombre completo"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-phone" className={labelClass(showErrors && errors.phone)}>
+              <Phone size={12} className="inline mr-1 -mt-0.5" />Teléfono
+            </label>
+            <input
+              id="customer-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputClass(showErrors && errors.phone)}
+              placeholder="3xx xxx xxxx"
+            />
+            {clientFound && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+                <CheckCircle2 size={12} />
+                Cliente registrado
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setService("llevar")}
-          aria-pressed={service === "llevar"}
-          className={[
-            "border border-gray-200 px-3 py-3 text-left",
-            service === "llevar" ? "text-black" : "text-gray-400 hover:text-black",
-          ].join(" ")}
-        >
-          <div className="text-xs font-black">Para llevar</div>
-          <div className="text-[11px] text-gray-400">Recoges tú en el punto acordado.</div>
-        </button>
+      {/* Tipo de servicio */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+            <Truck size={14} className="text-white" />
+          </div>
+          <h3 className="text-sm font-bold text-gray-900">Tipo de servicio</h3>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setService("domicilio")}
-          aria-pressed={service === "domicilio"}
-          className={[
-            "border border-gray-200 px-3 py-3 text-left",
-            service === "domicilio" ? "text-black" : "text-gray-400 hover:text-black",
-          ].join(" ")}
-        >
-          <div className="text-xs font-black">Domicilio</div>
-          <div className="text-[11px] text-gray-400">Te lo llevamos a tu barrio (aplica costo de envío).</div>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button
+            type="button"
+            onClick={() => setService("llevar")}
+            aria-pressed={service === "llevar"}
+            className={[
+              "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
+              service === "llevar"
+                ? "border-gray-900 bg-gray-50 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+            ].join(" ")}
+          >
+            {service === "llevar" && (
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+            )}
+            <Store size={20} className={service === "llevar" ? "text-gray-900" : "text-gray-400"} />
+            <div className="mt-2 text-sm font-bold text-gray-900">Para llevar</div>
+            <div className="mt-0.5 text-xs text-gray-500">Recoges en el punto acordado</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setService("domicilio")}
+            aria-pressed={service === "domicilio"}
+            className={[
+              "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
+              service === "domicilio"
+                ? "border-gray-900 bg-gray-50 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+            ].join(" ")}
+          >
+            {service === "domicilio" && (
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+            )}
+            <Truck size={20} className={service === "domicilio" ? "text-gray-900" : "text-gray-400"} />
+            <div className="mt-2 text-sm font-bold text-gray-900">Domicilio</div>
+            <div className="mt-0.5 text-xs text-gray-500">Te lo llevamos a tu barrio</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setService("local")}
+            aria-pressed={service === "local"}
+            className={[
+              "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
+              service === "local"
+                ? "border-gray-900 bg-gray-50 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+            ].join(" ")}
+          >
+            {service === "local" && (
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+            )}
+            <Store size={20} className={service === "local" ? "text-gray-900" : "text-gray-400"} />
+            <div className="mt-2 text-sm font-bold text-gray-900">En el local</div>
+            <div className="mt-0.5 text-xs text-gray-500">Consumes en nuestro local</div>
+          </button>
+        </div>
       </div>
 
+      {/* Sección domicilio */}
       {deliverySectionEnabled ? (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+              <MapPin size={14} className="text-white" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-900">Datos de entrega</h3>
+          </div>
+
+          {/* Direcciones guardadas - se muestran PRIMERO */}
+          {savedAddresses.length > 0 && !addingNewAddress && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+                <History size={12} className="inline mr-1 -mt-0.5" />Direcciones guardadas
+              </label>
+              <div className="mt-1.5 space-y-1.5">
+                {savedAddresses.map((addr, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setAddress(addr.direccion);
+                      if (addr.referencia) setReference(addr.referencia);
+                      // Auto-seleccionar el barrio guardado
+                      if (addr.barrio) {
+                        const matchedBarrio = filteredBarrios.find(b => b.name === addr.barrio) 
+                          || [...filteredBarrios, ...[]].find(b => b.name === addr.barrio);
+                        const allBarrio = (filteredBarrios.length > 0 ? filteredBarrios : []).find(b => b.name === addr.barrio)
+                          || { id: addr.barrio, name: addr.barrio, price: null } as any;
+                        if (matchedBarrio) {
+                          setBarrio(matchedBarrio);
+                        } else {
+                          // Buscar en todos los barrios disponibles
+                          const found = filteredBarrios.find(b => b.name.toLowerCase() === addr.barrio!.toLowerCase());
+                          if (found) setBarrio(found);
+                        }
+                      }
+                      setAddingNewAddress(false);
+                    }}
+                    className={[
+                      "w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
+                      address === addr.direccion
+                        ? "border-gray-900 bg-gray-50 shadow-sm"
+                        : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-800">{addr.direccion}</span>
+                      {addr.barrio && (
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{addr.barrio}</span>
+                      )}
+                    </div>
+                    {addr.referencia && (
+                      <div className="text-[11px] text-gray-400 mt-0.5">Ref: {addr.referencia}</div>
+                    )}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => { setAddress(""); setReference(""); setBarrio(null); setAddingNewAddress(true); }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mt-1"
+                >
+                  <Plus size={12} /> Agregar nueva dirección
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Barrio - solo se muestra si NO hay direcciones guardadas o si está agregando nueva */}
+          {(savedAddresses.length === 0 || addingNewAddress) && (
+          <div>
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <label htmlFor="customer-barrio-search" className={labelClass(showErrors && errors.barrio)}>Barrio</label>
-              <span
-                className={[
-                  "text-[11px] text-gray-400 sm:text-xs",
-                  showErrors && errors.barrio ? "text-red-600" : "",
-                ].join(" ")}
-              >
-                Si no encuentras tu barrio, elige uno cercano o tu zona.
+              <label htmlFor="customer-barrio-search" className={labelClass(showErrors && errors.barrio)}>
+                <MapPin size={12} className="inline mr-1 -mt-0.5" />Barrio
+              </label>
+              <span className="text-[11px] text-gray-400">
+                Si no encuentras tu barrio, elige uno cercano.
               </span>
             </div>
+
             <div
               className={[
-                "mt-1 rounded-2xl border bg-gray-50 p-3",
-                showErrors && errors.barrio ? "border-red-300" : "border-gray-300",
+                "mt-2 rounded-xl border p-3",
+                showErrors && errors.barrio ? "border-red-300 bg-red-50/30" : "border-gray-200 bg-gray-50",
               ].join(" ")}
             >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   id="customer-barrio-search"
                   value={barrioQuery}
                   onChange={(e) => setBarrioQuery(e.target.value)}
                   className={[
-                    "w-full rounded-xl border bg-gray-100 px-3 py-2 text-sm text-black outline-none",
+                    "w-full rounded-lg border bg-white pl-9 pr-3 py-2.5 text-sm text-black outline-none transition",
                     showErrors && errors.barrio
-                      ? "border-red-500/70 focus:border-red-400/80 focus:ring-2 focus:ring-red-500/30"
+                      ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
                       : "border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-200",
                   ].join(" ")}
-                  placeholder="Buscar barrio (ej: Centro, Campanario…)"
+                  placeholder="Buscar barrio..."
                 />
-
-                <div className="flex shrink-0 gap-2">
-                  {barrio ? (
-                    <button
-                      type="button"
-                      onClick={() => setBarrio(null)}
-                      className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
-                    >
-                      Quitar selección
-                    </button>
-                  ) : null}
-                  {barrioQuery ? (
-                    <button
-                      type="button"
-                      onClick={() => setBarrioQuery("")}
-                      className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
-                    >
-                      Ver todos
-                    </button>
-                  ) : null}
-                </div>
               </div>
 
-              <div className="mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
+              <div className="mt-2 flex gap-2">
+                {barrio ? (
+                  <button
+                    type="button"
+                    onClick={() => setBarrio(null)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    <X size={12} /> Quitar
+                  </button>
+                ) : null}
+                {barrioQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setBarrioQuery("")}
+                    className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    Ver todos
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-2 max-h-52 space-y-1.5 overflow-y-auto">
                 {filteredBarrios.length ? (
                   filteredBarrios.map((b) => {
                     const selected = barrio?.id === b.id;
@@ -265,119 +430,144 @@ export default function CustomerInfoSection({
                         type="button"
                         onClick={() => setBarrio(b)}
                         className={[
-                          "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                          "w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
                           selected
-                            ? "border-gray-400 bg-gray-100 text-black"
-                            : "border-gray-200 bg-gray-100 text-gray-700 hover:border-gray-300 hover:bg-gray-100 hover:text-black",
+                            ? "border-gray-900 bg-white text-black shadow-sm"
+                            : "border-gray-100 bg-white text-gray-700 hover:border-gray-300 hover:shadow-sm",
                         ].join(" ")}
                       >
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="font-semibold tracking-wide">{b.name}</span>
-                          <span className="text-xs text-gray-500">{b.price == null ? "Por confirmar" : cop(b.price)}</span>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium">{b.name}</span>
+                          <span className={`text-xs font-semibold ${selected ? "text-gray-900" : "text-gray-400"}`}>
+                            {b.price == null ? "Por confirmar" : cop(b.price)}
+                          </span>
                         </div>
                       </button>
                     );
                   })
                 ) : (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-600">
-                    No encontramos ese barrio. Verifica la ortografía o elige uno cercano a tu zona.
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-600">
+                    No encontramos ese barrio. Verifica la ortografía o elige uno cercano.
                   </div>
                 )}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-400">
-                <span>
-                  {filteredBarrios.length}/{totalBarrios} barrios disponibles
-                </span>
-                <span>{barrio ? `Seleccionado: ${barrio.name}` : "Sin barrio seleccionado"}</span>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
+                <span>{filteredBarrios.length}/{totalBarrios} barrios</span>
+                {barrio ? (
+                  <span className="flex items-center gap-1 font-medium text-gray-700">
+                    <CheckCircle2 size={12} className="text-emerald-500" /> {barrio.name}
+                  </span>
+                ) : (
+                  <span>Sin barrio seleccionado</span>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="col-span-2 sm:col-span-1">
-            <label htmlFor="customer-address" className={labelClass(showErrors && errors.address)}>Dirección</label>
-            <input
-              id="customer-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className={inputClass(showErrors && errors.address)}
-              placeholder="Cra 7 # 12-34"
-            />
+            {/* Botón para volver a direcciones guardadas */}
+            {savedAddresses.length > 0 && addingNewAddress && (
+              <button
+                type="button"
+                onClick={() => setAddingNewAddress(false)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mt-2"
+              >
+                <History size={12} /> Usar dirección guardada
+              </button>
+            )}
           </div>
+          )}
 
-          <div className="col-span-2 sm:col-span-1">
-            <label htmlFor="customer-reference" className="text-[11px] font-black text-gray-500">Referencia</label>
-            <input
-              id="customer-reference"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              className="mt-1 w-full border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
-              placeholder="Portón negro…"
-            />
-          </div>
-
-          {/* Ubicación en tiempo real */}
-          <div className="col-span-2 mt-1">
-            <label className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500 sm:text-[11px]">
-              Ubicación (Google Maps)
-            </label>
-            <div className="mt-1 text-[11px] text-gray-400">
-              Comparte tu ubicación para que podamos llegar más rápido.
+          {/* Dirección y referencia */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="customer-address" className={labelClass(showErrors && errors.address)}>
+                <MapPin size={12} className="inline mr-1 -mt-0.5" />Dirección
+              </label>
+              <input
+                id="customer-address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className={inputClass(showErrors && errors.address)}
+                placeholder="Cra 7 # 12-34"
+              />
             </div>
+
+            <div>
+              <label htmlFor="customer-reference" className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+                Referencia (opcional)
+              </label>
+              <input
+                id="customer-reference"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                placeholder="Portón negro, edificio azul..."
+              />
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+              <Navigation size={12} className="inline mr-1 -mt-0.5" />Ubicación (opcional)
+            </label>
+            <p className="mt-0.5 text-[11px] text-gray-400">
+              Comparte tu ubicación para que lleguemos más rápido.
+            </p>
 
             {!location ? (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={handleShareLocation}
-                  disabled={locationLoading}
-                  className={[
-                    "flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-xs font-black transition active:scale-[0.98]",
-                    locationLoading
-                      ? "border-gray-200 text-gray-300 cursor-wait"
-                      : "border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100",
-                  ].join(" ")}
-                >
-                  {locationLoading ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400" />
-                      Obteniendo ubicación…
-                    </>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                      Compartir mi ubicación
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleShareLocation}
+                disabled={locationLoading}
+                className={[
+                  "mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-all active:scale-[0.98]",
+                  locationLoading
+                    ? "border-gray-200 text-gray-300 cursor-wait"
+                    : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300",
+                ].join(" ")}
+              >
+                {locationLoading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400/30 border-t-blue-400" />
+                    Obteniendo ubicación...
+                  </>
+                ) : (
+                  <>
+                    <Navigation size={14} />
+                    Compartir mi ubicación
+                  </>
+                )}
+              </button>
             ) : (
-              <div className="mt-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3">
-                <div className="flex items-start justify-between gap-2">
+              <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <CheckCircle2 size={14} />
                     Ubicación compartida
                   </div>
                   <button
                     type="button"
                     onClick={handleRemoveLocation}
-                    className="text-[10px] font-bold text-gray-400 hover:text-gray-700"
+                    className="flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-700 transition"
                   >
-                    Quitar
+                    <X size={12} /> Quitar
                   </button>
                 </div>
 
-                <div className="mt-2 text-[11px] text-gray-500">
-                  {location.accuracy ? `Precisión: ~${Math.round(location.accuracy)}m` : "Ubicación obtenida"}
-                </div>
+                {location.accuracy && (
+                  <div className="mt-1.5 text-[11px] text-gray-500">
+                    Precisión: ~{Math.round(location.accuracy)}m
+                  </div>
+                )}
 
                 <a
                   href={location.mapsLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-100"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-50"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                  <ExternalLink size={12} />
                   Ver en Google Maps
                 </a>
               </div>
@@ -392,36 +582,70 @@ export default function CustomerInfoSection({
         </div>
       ) : null}
 
-      <div className="mt-5 border-t border-gray-200 pt-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-black">Pago</div>
+      {/* Pago */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+              <CreditCard size={14} className="text-white" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-900">Pago</h3>
+          </div>
           <div className="text-[11px] text-gray-400">
-            Nequi: <span className="font-black text-gray-700">{nequiPhone}</span>
+            Nequi: <span className="font-bold text-gray-700">{nequiPhone}</span>
           </div>
         </div>
 
-        <label htmlFor="payment-method" className="sr-only">Método de pago</label>
-        <select
-          id="payment-method"
-          value={paymentMethod}
-          onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-          className="mt-2 w-full border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
-          aria-label="Método de pago"
-        >
-          <option value="Transferencia">Transferencia</option>
-          <option value="Efectivo">Efectivo</option>
-        </select>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setPaymentMethod("Transferencia")}
+            className={[
+              "relative flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition-all",
+              paymentMethod === "Transferencia"
+                ? "border-gray-900 bg-gray-50 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+            ].join(" ")}
+          >
+            {paymentMethod === "Transferencia" && (
+              <CheckCircle2 size={14} className="absolute top-2 right-2 text-gray-900" />
+            )}
+            <CreditCard size={16} className={paymentMethod === "Transferencia" ? "text-gray-900" : "text-gray-400"} />
+            <span className="text-sm font-medium">Transferencia</span>
+          </button>
 
-        <label htmlFor="comments" className="sr-only">Comentarios</label>
-        <textarea
-          id="comments"
-          value={comments}
-          onChange={(e) => setComments(e.target.value)}
-          className="mt-2 w-full border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
-          rows={3}
-          placeholder="Comentarios (opcional)"
-          aria-label="Comentarios adicionales (opcional)"
-        />
+          <button
+            type="button"
+            onClick={() => setPaymentMethod("Efectivo")}
+            className={[
+              "relative flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition-all",
+              paymentMethod === "Efectivo"
+                ? "border-gray-900 bg-gray-50 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+            ].join(" ")}
+          >
+            {paymentMethod === "Efectivo" && (
+              <CheckCircle2 size={14} className="absolute top-2 right-2 text-gray-900" />
+            )}
+            <Banknote size={16} className={paymentMethod === "Efectivo" ? "text-gray-900" : "text-gray-400"} />
+            <span className="text-sm font-medium">Efectivo</span>
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="comments" className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+            <MessageSquare size={12} className="inline mr-1 -mt-0.5" />Comentarios (opcional)
+          </label>
+          <textarea
+            id="comments"
+            value={comments}
+            onChange={(e) => setComments(e.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200 resize-none"
+            rows={3}
+            placeholder="Instrucciones especiales, alergias, etc."
+            aria-label="Comentarios adicionales (opcional)"
+          />
+        </div>
       </div>
     </section>
   );

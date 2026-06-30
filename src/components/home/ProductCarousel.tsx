@@ -49,8 +49,8 @@ function buildPriceLabel(product: Product): { price: string; highlight: string |
   if (product.category === "gomitas") {
     const base = getGomitasPrices(product);
     const parts: string[] = [];
-    if (base.ahogada != null) parts.push(`Ahogada desde ${cop(base.ahogada)}`);
-    if (base.picosa != null) parts.push(`Picosa desde ${cop(base.picosa)}`);
+    if (base.ahogada != null) parts.push(`Ahogada ${cop(base.ahogada)}`);
+    if (base.picosa != null) parts.push(`Picosa ${cop(base.picosa)}`);
     return {
       price: parts.length ? parts.join(" • ") : "Precio por confirmar",
       highlight: "Ahogadas o picosas, tú decides",
@@ -63,7 +63,7 @@ function buildPriceLabel(product: Product): { price: string; highlight: string |
 
   const ff = getFrutaFreshPrices(product);
   if (ff.fijo != null) {
-    return { price: `Precio ${cop(ff.fijo)}`, highlight: "Fruta fresca con chamoy artesanal", extra: null };
+    return { price: `${cop(ff.fijo)}`, highlight: "Fruta fresca con chamoy artesanal", extra: null };
   }
 
   const parts: string[] = [];

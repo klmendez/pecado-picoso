@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { OrderService } from '../services/orderService';
 import { ProductService, type FirestoreProduct } from '../services/productService';
+import { ClientService, type FirestoreClient } from '../services/clientService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import type { PedidoFirestore, OrderFilters, OrderStatus } from '../types/order';
 import { cop } from '../lib/format';
@@ -11,6 +12,7 @@ import AdminAuth from '../components/AdminAuth';
 import AdminLayout from '../components/admin/AdminLayout';
 import OrderEditModal from '../components/admin/OrderEditModal';
 import OrderDetailModal from '../components/admin/OrderDetailModal';
+import ClientDetailModal from '../components/admin/ClientDetailModal';
 
 const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
   todos: 'Todos',
@@ -33,7 +35,7 @@ export default function AdminDashboard() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
   const [editingOrder, setEditingOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'estadisticas' | 'productos' | 'categorias'>('pedidos');
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias'>('pedidos');
 
   const [products, setProducts] = useState<FirestoreProduct[]>([]);
   const [prodLoading, setProdLoading] = useState(false);
@@ -58,7 +60,13 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState<import('../services/categoryService').FirestoreCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
   const [catForm, setCatForm] = useState({ name: '', description: '', image: '' });
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [catError, setCatError] = useState<string | null>(null);
+
+  const [clients, setClients] = useState<FirestoreClient[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [selectedClient, setSelectedClient] = useState<FirestoreClient | null>(null);
 
 
   const stats = {
@@ -126,7 +134,22 @@ export default function AdminDashboard() {
         }
       });
     }
+    if (activeTab === 'clientes') {
+      loadClients();
+    }
   }, [activeTab]);
+
+  const loadClients = async () => {
+    setClientsLoading(true);
+    try {
+      const allClients = await ClientService.getAllClients();
+      setClients(allClients);
+    } catch (err) {
+      console.error('Error loading clients:', err);
+    } finally {
+      setClientsLoading(false);
+    }
+  };
 
   const handleMigrateManual = async () => {
     setMigrateMsg('Migrando...');
@@ -274,17 +297,41 @@ export default function AdminDashboard() {
     if (!catForm.name.trim()) return;
     setCatError(null);
     try {
-      await import('../services/categoryService').then(m => m.CategoryService.addCategory({
-        name: catForm.name.trim(),
-        description: catForm.description.trim(),
-        image: catForm.image.trim(),
-      }));
+      const { CategoryService } = await import('../services/categoryService');
+      if (editingCategoryId) {
+        await CategoryService.updateCategory(editingCategoryId, {
+          name: catForm.name.trim(),
+          description: catForm.description.trim(),
+          image: catForm.image.trim(),
+        });
+        setEditingCategoryId(null);
+      } else {
+        await CategoryService.addCategory({
+          name: catForm.name.trim(),
+          description: catForm.description.trim(),
+          image: catForm.image.trim(),
+        });
+      }
       setCatForm({ name: '', description: '', image: '' });
       const updated = await import('../services/categoryService').then(m => m.CategoryService.getCategories());
       setCategories(updated);
     } catch (err: any) {
       setCatError(err.message || 'Error al guardar categoría');
     }
+  };
+
+  const handleEditCategory = (c: import('../services/categoryService').FirestoreCategory) => {
+    setEditingCategoryId(c.id || null);
+    setCatForm({
+      name: c.name,
+      description: c.description || '',
+      image: c.image || '',
+    });
+  };
+
+  const cancelEditCategory = () => {
+    setEditingCategoryId(null);
+    setCatForm({ name: '', description: '', image: '' });
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -373,6 +420,37 @@ export default function AdminDashboard() {
     if (!ts) return '';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getElapsedTime = (ts: any, endState?: string) => {
+    if (!ts) return '';
+    const start = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    const isFinished = endState === 'entregado' || endState === 'cancelado';
+    const diffMs = isFinished ? 0 : now.getTime() - start.getTime();
+    if (diffMs <= 0) return 'Finalizado';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    if (hrs < 24) return `${hrs}h ${remainMins}m`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ${hrs % 24}h`;
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    no_pagado: 'bg-amber-100 text-amber-700 border-amber-200',
+    pagado: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    preparando: 'bg-blue-100 text-blue-700 border-blue-200',
+    en_camino: 'bg-violet-100 text-violet-700 border-violet-200',
+    entregado: 'bg-gray-100 text-gray-500 border-gray-200',
+    cancelado: 'bg-red-100 text-red-600 border-red-200',
   };
 
   const metricItems = [
@@ -522,137 +600,240 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* ====== Tabla profesional ====== */}
-            <div className="overflow-hidden" style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
-              {loading ? (
-                <div className="p-12 text-center text-gray-500 text-sm">Cargando pedidos...</div>
+            {/* ====== Pedidos en bloques ====== */}
+            {loading ? (
+              <div className="p-12 text-center text-gray-500 text-sm">Cargando pedidos...</div>
+            ) : orders.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="text-gray-400 text-sm">No se encontraron pedidos.</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {orders.map((order: PedidoFirestore & { id: string }) => {
+                  const elapsed = getElapsedTime(order.createdAt, order.estado);
+                  const colorClass = STATUS_COLORS[order.estado] || 'bg-gray-100 text-gray-600 border-gray-200';
+                  return (
+                    <div key={order.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+                      {/* Header: orden + estado + tiempo */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <div className="font-mono text-xs font-bold text-gray-900">{order.numeroOrden}</div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">{fmtDate(order.createdAt)} · {fmtTime(order.createdAt)}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {elapsed && (
+                            <div className={`flex items-center gap-1 text-[11px] font-semibold ${order.estado === 'entregado' || order.estado === 'cancelado' ? 'text-gray-400' : 'text-orange-600'}`}>
+                              <Clock size={11} />
+                              {elapsed}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Estado badge */}
+                      <div className="mb-3">
+                        <select
+                          value={order.estado}
+                          onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border cursor-pointer outline-none ${colorClass}`}
+                        >
+                          {(Object.keys(STATUS_LABELS) as (OrderStatus | 'todos')[]).filter(s => s !== 'todos').map(s => (
+                            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Cliente */}
+                      <div className="space-y-1.5 mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 shrink-0">
+                            <span className="text-xs font-bold text-gray-600">{order.cliente.nombres.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 truncate">{order.cliente.nombres}</div>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <Phone size={10} />
+                              <span>{order.cliente.celular}</span>
+                              <button onClick={() => handleWhatsApp(order.cliente.celular)} className="text-green-500 hover:text-green-600" title="WhatsApp">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dirección */}
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 pl-10">
+                          <MapPin size={11} className="text-gray-400 shrink-0" />
+                          <span className="truncate">{order.cliente.direccion || 'Para llevar'}</span>
+                          {order.cliente.coordenadas && (
+                            <button onClick={() => handleOpenLocation(order)} className="text-blue-500 hover:text-blue-600 shrink-0" title="Ver en mapa">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Items resumen */}
+                      <div className="border-t border-gray-100 pt-2 mb-3">
+                        <div className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Productos</div>
+                        <div className="space-y-0.5">
+                          {order.items.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="text-xs text-gray-600 truncate">
+                              x{item.qty} {item.product.name}{item.version ? ` (${item.version})` : ''}
+                            </div>
+                          ))}
+                          {order.items.length > 3 && (
+                            <div className="text-[11px] text-gray-400">+{order.items.length - 3} más</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer: total + acciones */}
+                      <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                        <div>
+                          <div className="text-lg font-bold text-gray-900">{cop(order.total)}</div>
+                          <div className="text-[11px] text-gray-400">{order.formaPago} · {order.servicio === 'domicilio' ? 'Domicilio' : 'Llevar'}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setSelectedOrder(order)}
+                            title="Ver detalle"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                          ><Eye size={15} /></button>
+                          <button
+                            onClick={() => setEditingOrder(order)}
+                            title="Editar"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                          ><Edit size={15} /></button>
+                          <button
+                            onClick={() => handleDeleteOrder(order.id)}
+                            title="Eliminar"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                          ><Trash2 size={15} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Contador */}
+            <div className="mt-4 text-xs text-gray-400 font-medium">
+              {orders.length} pedido{orders.length !== 1 ? 's' : ''}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'clientes' && (
+          <>
+            {/* Búsqueda */}
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex-1 relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o teléfono..."
+                  value={clientSearchTerm}
+                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                />
+              </div>
+            </div>
+
+            {/* Tabla de clientes */}
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              {clientsLoading ? (
+                <div className="p-12 text-center text-gray-500 text-sm">Cargando clientes...</div>
+              ) : clients.length === 0 ? (
+                <div className="p-12 text-center text-gray-400 text-sm">No hay clientes registrados.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pedido</th>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cliente</th>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacto / Dir.</th>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado</th>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</th>
-                        <th className="px-4 py-3 text-left" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fecha</th>
-                        <th className="px-4 py-3 text-right" style={{ fontWeight: 600, color: '#888', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acciones</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Cliente</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Teléfono</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Direcciones</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Pedidos</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Total Gastado</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Última Compra</th>
+                        <th className="px-4 py-3 text-right font-semibold text-xs text-gray-600 uppercase tracking-wide">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order: PedidoFirestore & { id: string }) => (
-                        <tr key={order.id} style={{ borderBottom: '1px solid #f0f0f0', transition: 'background 0.15s ease' }} onMouseEnter={(e) => { e.currentTarget.style.background = '#f8f8f8'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                          <td className="px-4 py-3">
-                            <div className="font-mono font-semibold text-gray-900">{order.numeroOrden}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{order.formaPago}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-900">{order.cliente.nombres}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              {order.servicio === 'domicilio' ? 'Domicilio' : 'Para llevar'}
-                              {order.items.length > 0 && ` · ${order.items.length} items`}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5 text-gray-700">
-                              <Phone size={12} className="text-gray-400" />
-                              <span>{order.cliente.celular}</span>
-                              <button onClick={() => handleWhatsApp(order.cliente.celular)} className="text-green-500 hover:text-green-600 ml-1" title="WhatsApp">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-gray-500 text-xs mt-1">
-                              <MapPin size={12} className="text-gray-400" />
-                              <span className="truncate max-w-[180px]">{order.cliente.direccion || 'Para llevar'}</span>
-                              {order.cliente.coordenadas && (
-                                <button onClick={() => handleOpenLocation(order)} className="text-blue-500 hover:text-blue-600" title="Ver en mapa">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                                </button>
-                              )}
-                            </div>
-                            {order.cliente.ubicacionTiempoReal && order.cliente.ubicacionTiempoReal.length > 1 && (
-                              <div className="text-[10px] text-blue-500 flex items-center gap-1 mt-0.5">
-                                <Clock size={10} />
-                                Ubicacion en tiempo real
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={order.estado}
-                              onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
-                              style={{
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                padding: '4px 24px 4px 8px',
-                                border: '1px solid #e0e0e0',
-                                borderRadius: '4px',
-                                background: '#fff',
-                                color: '#333',
-                                cursor: 'pointer',
-                                outline: 'none',
-                              }}
-                            >
-                              {(Object.keys(STATUS_LABELS) as OrderStatus[]).map(s => (
-                                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-gray-900">{cop(order.total)}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-gray-700">{fmtDate(order.createdAt)}</div>
-                            <div className="text-[11px] text-gray-400">{fmtTime(order.createdAt)}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end" style={{ gap: '4px' }}>
-                              <button
-                                onClick={() => setSelectedOrder(order)}
-                                title="Ver detalle"
-                                className="inline-flex items-center justify-center cursor-pointer"
-                                style={{ width: '32px', height: '32px', borderRadius: '4px', border: 'none', background: 'transparent', color: '#888', transition: 'color 0.15s ease, background 0.15s ease' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.background = '#f5f5f5'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; e.currentTarget.style.background = 'transparent'; }}
-                              ><Eye size={16} /></button>
-                              <button
-                                onClick={() => setEditingOrder(order)}
-                                title="Editar"
-                                className="inline-flex items-center justify-center cursor-pointer"
-                                style={{ width: '32px', height: '32px', borderRadius: '4px', border: 'none', background: 'transparent', color: '#888', transition: 'color 0.15s ease, background 0.15s ease' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.background = '#f5f5f5'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; e.currentTarget.style.background = 'transparent'; }}
-                              ><Edit size={16} /></button>
-                              <button
-                                onClick={() => handleDeleteOrder(order.id)}
-                                title="Eliminar"
-                                className="inline-flex items-center justify-center cursor-pointer"
-                                style={{ width: '32px', height: '32px', borderRadius: '4px', border: 'none', background: 'transparent', color: '#888', transition: 'color 0.15s ease, background 0.15s ease' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#f5f5f5'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; e.currentTarget.style.background = 'transparent'; }}
-                              ><Trash2 size={16} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {clients
+                        .filter(c =>
+                          clientSearchTerm === '' ||
+                          c.nombres.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+                          c.celular.includes(clientSearchTerm.replace(/\D/g, ''))
+                        )
+                        .map((client) => {
+                          const lastPurchase = client.ultimoPedido?.toDate ? client.ultimoPedido.toDate() : new Date();
+                          const daysSince = Math.floor((new Date().getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24));
+                          return (
+                            <tr key={client.id} style={{ borderBottom: '1px solid #f0f0f0' }} className="hover:bg-gray-50 transition">
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-gray-900">{client.nombres}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5 text-gray-700">
+                                  <Phone size={12} className="text-gray-400" />
+                                  <span>{client.celular}</span>
+                                  <button onClick={() => handleWhatsApp(client.celular)} className="text-green-500 hover:text-green-600 ml-1" title="WhatsApp">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-xs text-gray-600">
+                                  {client.direcciones?.length || 0} dirección{(client.direcciones?.length || 0) !== 1 ? 'es' : ''}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-gray-900">{client.totalPedidos}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-bold text-gray-900">{cop(client.totalGastado)}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-xs text-gray-600">
+                                  {daysSince === 0 ? 'Hoy' : daysSince === 1 ? 'Ayer' : `Hace ${daysSince} días`}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end">
+                                  <button
+                                    onClick={() => setSelectedClient(client)}
+                                    title="Ver detalle"
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                                  >
+                                    <Eye size={15} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
-
-                  {orders.length === 0 && !loading && (
-                    <div className="p-12 text-center">
-                      <div className="text-gray-400 text-sm">No se encontraron pedidos.</div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
 
             {/* Contador */}
-            <div className="mt-3 text-xs text-gray-400 font-medium">
-              {orders.length} pedido{orders.length !== 1 ? 's' : ''}
+            <div className="mt-4 text-xs text-gray-400 font-medium">
+              {clients.length} cliente{clients.length !== 1 ? 's' : ''}
             </div>
           </>
+        )}
+
+        {/* Modal de detalle de cliente */}
+        {selectedClient && (
+          <ClientDetailModal
+            client={selectedClient}
+            onClose={() => setSelectedClient(null)}
+          />
         )}
 
         {activeTab === 'estadisticas' && (
@@ -665,7 +846,9 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Formulario categorías */}
             <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px', padding: '20px' }}>
-              <h2 className="text-base font-medium mb-4" style={{ color: '#333' }}>Agregar categoría</h2>
+              <h2 className="text-base font-medium mb-4" style={{ color: '#333' }}>
+                {editingCategoryId ? 'Editar categoría' : 'Agregar categoría'}
+              </h2>
               {catError && (
                 <div className="mb-3 p-2 text-sm" style={{ background: '#fff0f0', color: '#e85a5a', borderRadius: '4px' }}>{catError}</div>
               )}
@@ -709,15 +892,27 @@ export default function AdminDashboard() {
                     <img src={catForm.image} alt="preview" className="mt-2 w-12 h-12 object-cover rounded" />
                   )}
                 </div>
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 cursor-pointer"
-                  style={{ padding: '8px 16px', fontSize: '0.875rem', fontWeight: 500, color: '#fff', background: '#dc2626', border: 'none', borderRadius: '4px', transition: 'background 0.15s ease' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#b91c1c'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#dc2626'}
-                >
-                  <Plus size={16} /> Agregar categoría
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 cursor-pointer flex-1"
+                    style={{ padding: '8px 16px', fontSize: '0.875rem', fontWeight: 500, color: '#fff', background: '#dc2626', border: 'none', borderRadius: '4px', transition: 'background 0.15s ease' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#b91c1c'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#dc2626'}
+                  >
+                    <Plus size={16} /> {editingCategoryId ? 'Guardar cambios' : 'Agregar categoría'}
+                  </button>
+                  {editingCategoryId && (
+                    <button
+                      type="button"
+                      onClick={cancelEditCategory}
+                      className="inline-flex items-center justify-center gap-2 cursor-pointer"
+                      style={{ padding: '8px 16px', fontSize: '0.875rem', fontWeight: 500, color: '#666', background: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: '4px', transition: 'background 0.15s ease' }}
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
 
@@ -743,6 +938,16 @@ export default function AdminDashboard() {
                         <p className="text-sm font-medium truncate" style={{ color: '#333' }}>{c.name}</p>
                         <p className="text-xs" style={{ color: '#888' }}>{c.description || 'Sin descripción'}</p>
                       </div>
+                      <button
+                        onClick={() => handleEditCategory(c)}
+                        className="inline-flex items-center justify-center cursor-pointer"
+                        style={{ width: '32px', height: '32px', borderRadius: '4px', border: 'none', background: 'transparent', color: '#888', transition: 'color 0.15s ease, background 0.15s ease' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#f5f5f5'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; e.currentTarget.style.background = 'transparent'; }}
+                        title="Editar"
+                      >
+                        <Edit size={16} />
+                      </button>
                       <button
                         onClick={() => handleDeleteCategory(c.id!)}
                         className="inline-flex items-center justify-center cursor-pointer"

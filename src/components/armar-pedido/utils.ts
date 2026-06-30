@@ -6,7 +6,17 @@ import { EXTRAS } from "../../data/extras";
 
 export function getAvailableSizes(product: Product): Size[] {
   if (product.category === "gomitas") {
-    return product.sizes.filter((s) => {
+    // Filtrar sizes que tengan precio > 0
+    const fromSizes = product.sizes.filter((s) => {
+      const a = product.prices.ahogada?.[s] ?? 0;
+      const p = product.prices.picosa?.[s] ?? 0;
+      return a > 0 || p > 0;
+    });
+    if (fromSizes.length > 0) return fromSizes;
+
+    // Si sizes está vacío o no coincide con precios, inferir desde los precios
+    const allSizes: Size[] = ["pequeno", "mediano", "grande"];
+    return allSizes.filter((s) => {
       const a = product.prices.ahogada?.[s] ?? 0;
       const p = product.prices.picosa?.[s] ?? 0;
       return a > 0 || p > 0;
