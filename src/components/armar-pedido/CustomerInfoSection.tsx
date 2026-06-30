@@ -322,10 +322,8 @@ export default function CustomerInfoSection({
                       if (addr.referencia) setReference(addr.referencia);
                       // Auto-seleccionar el barrio guardado
                       if (addr.barrio) {
-                        const matchedBarrio = filteredBarrios.find(b => b.name === addr.barrio) 
+                        const matchedBarrio = filteredBarrios.find(b => b.name === addr.barrio)
                           || [...filteredBarrios, ...[]].find(b => b.name === addr.barrio);
-                        const allBarrio = (filteredBarrios.length > 0 ? filteredBarrios : []).find(b => b.name === addr.barrio)
-                          || { id: addr.barrio, name: addr.barrio, price: null } as any;
                         if (matchedBarrio) {
                           setBarrio(matchedBarrio);
                         } else {
