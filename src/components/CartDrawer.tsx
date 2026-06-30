@@ -182,7 +182,7 @@ export default function CartDrawer({
       }
 
       // Guardar/actualizar cliente en la base de datos
-      ClientService.upsertClient({
+      await ClientService.upsertClient({
         celular: phone.trim(),
         nombres: name.trim(),
         direccion: service === 'domicilio' ? address.trim() : undefined,

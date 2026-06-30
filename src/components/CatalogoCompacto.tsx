@@ -182,7 +182,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                   </span>
                   <h3 className="mt-0.5 text-sm font-medium text-white leading-tight">{p.name}</h3>
                   {details ? (
-                    <p className="mt-1 text-[11px] text-white/60 leading-snug line-clamp-2">{details}</p>
+                    <p className="mt-1 text-[11px] text-white/60 leading-snug">{details}</p>
                   ) : null}
                   <div className="mt-1 text-[10px] text-white/50">
                     {p.category === "gomitas"

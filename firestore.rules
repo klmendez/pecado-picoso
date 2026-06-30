@@ -17,6 +17,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Coleccion de clientes: lectura/escritura abierta para guardar y consultar
+    match /clientes/{cliente} {
+      allow read, write: if true;
+    }
+
     // Fallback para otras colecciones futuras
     match /{document=**} {
       allow read, write: if false;
