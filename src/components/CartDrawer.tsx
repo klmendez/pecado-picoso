@@ -182,14 +182,19 @@ export default function CartDrawer({
       }
 
       // Guardar/actualizar cliente en la base de datos
-      await ClientService.upsertClient({
-        celular: phone.trim(),
-        nombres: name.trim(),
-        direccion: service === 'domicilio' ? address.trim() : undefined,
-        barrio: barrio?.name,
-        referencia: reference?.trim() || undefined,
-        totalPedido: total
-      });
+      try {
+        await ClientService.upsertClient({
+          celular: phone.trim(),
+          nombres: name.trim(),
+          direccion: service === 'domicilio' ? address.trim() : undefined,
+          barrio: barrio?.name,
+          referencia: reference?.trim() || undefined,
+          totalPedido: total
+        });
+        console.log('✅ Cliente guardado/actualizado correctamente');
+      } catch (clientError) {
+        console.error('❌ Error guardando cliente:', clientError);
+      }
 
       // Enviar notificación al negocio sobre nuevo pedido
       const orderWithId = { 
