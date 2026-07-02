@@ -412,10 +412,11 @@ export default function CartDrawer({
           <div className="border-t border-gray-200 p-4 space-y-3">
             {/* Botón de WhatsApp (guarda en DB y abre WhatsApp) */}
             <button
-              onClick={async () => {
-                await handleSubmitOrder();
-                // Abrir WhatsApp siempre, incluso si hay error
+              onClick={() => {
+                // Abrir WhatsApp inmediatamente para evitar bloqueo en móvil
                 openWhatsApp();
+                // Guardar en DB en segundo plano
+                handleSubmitOrder();
               }}
               disabled={isSubmitting || submitStatus === 'success'}
               className="w-full rounded-full bg-green-600 py-3 font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
