@@ -106,12 +106,13 @@ export class ClientService {
         // Cliente nuevo: crear
         const direcciones: ClientAddress[] = [];
         if (data.direccion && data.direccion.trim()) {
-          direcciones.push({
+          const newAddr: ClientAddress = {
             direccion: data.direccion.trim(),
-            barrio: data.barrio,
-            referencia: data.referencia,
             lastUsed: now
-          });
+          };
+          if (data.barrio) newAddr.barrio = data.barrio;
+          if (data.referencia) newAddr.referencia = data.referencia;
+          direcciones.push(newAddr);
         }
 
         await setDoc(docRef, {

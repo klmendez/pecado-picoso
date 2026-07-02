@@ -21,6 +21,7 @@ type Params = {
   delivery: number;
   total: number;
   destination?: string;
+  locationLink?: string;
 };
 
 export function useOrderMessage(params: Params) {
@@ -38,6 +39,7 @@ export function useOrderMessage(params: Params) {
     delivery,
     total,
     destination = `57${WHATSAPP_PHONE}`,
+    locationLink,
   } = params;
 
   const openWhatsApp = useCallback(() => {
@@ -64,6 +66,7 @@ export function useOrderMessage(params: Params) {
       extrasCatalog: EXTRAS,
       paymentMethod,
       comments: comments.trim() || undefined,
+      locationLink,
     });
 
     window.open(waLink(destination, message), "_blank");
@@ -81,6 +84,7 @@ export function useOrderMessage(params: Params) {
     delivery,
     total,
     destination,
+    locationLink,
   ]);
 
   return { openWhatsApp };

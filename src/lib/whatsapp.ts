@@ -158,6 +158,7 @@ export function buildWhatsAppMessage(args: {
 
   paymentMethod: PaymentMethod;
   comments?: string;
+  locationLink?: string;
 }) {
   const {
     origin,
@@ -176,6 +177,7 @@ export function buildWhatsAppMessage(args: {
     extrasCatalog,
     paymentMethod,
     comments,
+    locationLink,
   } = args;
 
   const serviceLabel = formatServiceLabel(service);
@@ -222,11 +224,14 @@ export function buildWhatsAppMessage(args: {
     `Teléfono: *${phone}*`,
   ];
 
+  const locationLine = locationLink ? `📍 *Ubicación en tiempo real:* ${locationLink}` : null;
+
   const serviceSection = [
     section(`${pickServiceEmoji(service)} Servicio`),
     `Tipo: *${serviceLabel}*`,
     barrioLine ?? null,
     addressLine ?? null,
+    locationLine ?? null,
     deliveryPendingLine ?? null,
   ];
 

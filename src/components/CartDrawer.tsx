@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, MapPin, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, MapPin, Clock, AlertCircle, CheckCircle, MessageCircle } from 'lucide-react';
 import { OrderService } from '../services/orderService';
 import { ClientService } from '../services/clientService';
 import { LocationService } from '../services/locationService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
+import { useOrderMessage } from '../hooks/useOrderMessage';
 import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
 import type { CustomerLocation } from '../types/order';
 import type { Barrio } from '../data/barrios';
@@ -53,6 +54,24 @@ export default function CartDrawer({
   const [isTrackingLocation, setIsTrackingLocation] = useState(false);
   const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+
+  // Hook para generar mensaje de WhatsApp
+  const locationLink = currentLocation ? LocationService.generateMapsLink(currentLocation) : undefined;
+  const { openWhatsApp } = useOrderMessage({
+    name,
+    phone,
+    service,
+    barrio,
+    address,
+    reference,
+    paymentMethod,
+    comments,
+    items,
+    subtotal,
+    delivery,
+    total,
+    locationLink
+  });
 
   useEffect(() => {
     if (initialLocation) {
@@ -183,14 +202,24 @@ export default function CartDrawer({
 
       // Guardar/actualizar cliente en la base de datos
       try {
-        await ClientService.upsertClient({
+        const clientData: any = {
           celular: phone.trim(),
           nombres: name.trim(),
-          direccion: service === 'domicilio' ? address.trim() : undefined,
-          barrio: barrio?.name,
-          referencia: reference?.trim() || undefined,
           totalPedido: total
-        });
+        };
+        
+        // Solo agregar campos opcionales si tienen valor
+        if (service === 'domicilio' && address.trim()) {
+          clientData.direccion = address.trim();
+        }
+        if (barrio?.name) {
+          clientData.barrio = barrio.name;
+        }
+        if (reference?.trim()) {
+          clientData.referencia = reference.trim();
+        }
+        
+        await ClientService.upsertClient(clientData);
         console.log('✅ Cliente guardado/actualizado correctamente');
       } catch (clientError) {
         console.error('❌ Error guardando cliente:', clientError);
@@ -380,7 +409,37 @@ export default function CartDrawer({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-gray-200 p-4">
+          <div className="border-t border-gray-200 p-4 space-y-3">
+            {/* Botón de WhatsApp (guarda en DB y abre WhatsApp) */}
+            <button
+              onClick={async () => {
+                await handleSubmitOrder();
+                if (submitStatus !== 'error') {
+                  openWhatsApp();
+                }
+              }}
+              disabled={isSubmitting || submitStatus === 'success'}
+              className="w-full rounded-full bg-green-600 py-3 font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Clock size={16} className="animate-spin" />
+                  Guardando...
+                </div>
+              ) : submitStatus === 'success' ? (
+                '✅ Enviado'
+              ) : (
+                <>
+                  <MessageCircle size={18} />
+                  Enviar por WhatsApp
+                  {currentLocation && service === 'domicilio' && (
+                    <span className="text-xs">📍</span>
+                  )}
+                </>
+              )}
+            </button>
+
+            {/* Botón de crear pedido solo (guarda en DB) */}
             <button
               onClick={handleSubmitOrder}
               disabled={isSubmitting || submitStatus === 'success'}
@@ -394,12 +453,16 @@ export default function CartDrawer({
               ) : submitStatus === 'success' ? (
                 '✅ Pedido creado'
               ) : (
-                `Crear Pedido - ${cop(total)}`
+                `Solo Guardar Pedido - ${cop(total)}`
               )}
             </button>
             
             <p className="mt-2 text-center text-xs text-gray-500">
-              Al crear el pedido aceptas nuestros términos y condiciones
+              {currentLocation && service === 'domicilio' ? (
+                '📍 Tu ubicación se incluirá en el mensaje de WhatsApp'
+              ) : (
+                'Al crear el pedido aceptas nuestros términos y condiciones'
+              )}
             </p>
           </div>
         </div>
