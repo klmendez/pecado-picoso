@@ -414,9 +414,8 @@ export default function CartDrawer({
             <button
               onClick={async () => {
                 await handleSubmitOrder();
-                if (submitStatus !== 'error') {
-                  openWhatsApp();
-                }
+                // Abrir WhatsApp siempre, incluso si hay error
+                openWhatsApp();
               }}
               disabled={isSubmitting || submitStatus === 'success'}
               className="w-full rounded-full bg-green-600 py-3 font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
