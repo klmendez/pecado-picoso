@@ -185,9 +185,9 @@ export default function CustomerInfoSection({
       ) : null}
 
       {/* Datos personales */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="border-t border-gray-200 pt-5">
         <div className="flex items-center gap-2 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rojo">
             <User size={14} className="text-white" />
           </div>
           <h3 className="text-sm font-bold text-gray-900">Datos personales</h3>
@@ -218,7 +218,7 @@ export default function CustomerInfoSection({
               placeholder="3xx xxx xxxx"
             />
             {clientFound && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-rojo font-medium">
                 <CheckCircle2 size={12} />
                 Cliente registrado
               </div>
@@ -228,9 +228,9 @@ export default function CustomerInfoSection({
       </div>
 
       {/* Tipo de servicio */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="border-t border-gray-200 pt-5">
         <div className="flex items-center gap-2 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rojo">
             <Truck size={14} className="text-white" />
           </div>
           <h3 className="text-sm font-bold text-gray-900">Tipo de servicio</h3>
@@ -244,14 +244,14 @@ export default function CustomerInfoSection({
             className={[
               "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
               service === "llevar"
-                ? "border-gray-900 bg-gray-50 shadow-sm"
+                ? "border-rojo bg-rojo-light shadow-sm"
                 : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
             ].join(" ")}
           >
             {service === "llevar" && (
-              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-rojo" />
             )}
-            <Store size={20} className={service === "llevar" ? "text-gray-900" : "text-gray-400"} />
+            <Store size={20} className={service === "llevar" ? "text-rojo" : "text-gray-400"} />
             <div className="mt-2 text-sm font-bold text-gray-900">Para llevar</div>
             <div className="mt-0.5 text-xs text-gray-500">Recoges en el punto acordado</div>
           </button>
@@ -263,14 +263,14 @@ export default function CustomerInfoSection({
             className={[
               "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
               service === "domicilio"
-                ? "border-gray-900 bg-gray-50 shadow-sm"
+                ? "border-rojo bg-rojo-light shadow-sm"
                 : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
             ].join(" ")}
           >
             {service === "domicilio" && (
-              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-rojo" />
             )}
-            <Truck size={20} className={service === "domicilio" ? "text-gray-900" : "text-gray-400"} />
+            <Truck size={20} className={service === "domicilio" ? "text-rojo" : "text-gray-400"} />
             <div className="mt-2 text-sm font-bold text-gray-900">Domicilio</div>
             <div className="mt-0.5 text-xs text-gray-500">Te lo llevamos a tu barrio</div>
           </button>
@@ -282,14 +282,14 @@ export default function CustomerInfoSection({
             className={[
               "relative rounded-xl border-2 px-4 py-4 text-left transition-all",
               service === "local"
-                ? "border-gray-900 bg-gray-50 shadow-sm"
+                ? "border-rojo bg-rojo-light shadow-sm"
                 : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
             ].join(" ")}
           >
             {service === "local" && (
-              <CheckCircle2 size={16} className="absolute top-3 right-3 text-gray-900" />
+              <CheckCircle2 size={16} className="absolute top-3 right-3 text-rojo" />
             )}
-            <Store size={20} className={service === "local" ? "text-gray-900" : "text-gray-400"} />
+            <Store size={20} className={service === "local" ? "text-rojo" : "text-gray-400"} />
             <div className="mt-2 text-sm font-bold text-gray-900">En el local</div>
             <div className="mt-0.5 text-xs text-gray-500">Consumes en nuestro local</div>
           </button>
@@ -298,9 +298,9 @@ export default function CustomerInfoSection({
 
       {/* Sección domicilio */}
       {deliverySectionEnabled ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-5">
+        <div className="border-t border-gray-200 pt-5 space-y-5">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rojo">
               <MapPin size={14} className="text-white" />
             </div>
             <h3 className="text-sm font-bold text-gray-900">Datos de entrega</h3>
@@ -309,10 +309,15 @@ export default function CustomerInfoSection({
           {/* Direcciones guardadas - se muestran PRIMERO */}
           {savedAddresses.length > 0 && !addingNewAddress && (
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
-                <History size={12} className="inline mr-1 -mt-0.5" />Direcciones guardadas
-              </label>
-              <div className="mt-1.5 space-y-1.5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rojo-light">
+                  <MapPin size={14} className="text-rojo" />
+                </div>
+                <label className="text-sm font-bold text-gray-900">
+                  Direcciones guardadas
+                </label>
+              </div>
+              <div className="mt-1.5 space-y-2">
                 {savedAddresses.map((addr, i) => (
                   <button
                     key={i}
@@ -320,14 +325,12 @@ export default function CustomerInfoSection({
                     onClick={() => {
                       setAddress(addr.direccion);
                       if (addr.referencia) setReference(addr.referencia);
-                      // Auto-seleccionar el barrio guardado
                       if (addr.barrio) {
                         const matchedBarrio = filteredBarrios.find(b => b.name === addr.barrio)
                           || [...filteredBarrios, ...[]].find(b => b.name === addr.barrio);
                         if (matchedBarrio) {
                           setBarrio(matchedBarrio);
                         } else {
-                          // Buscar en todos los barrios disponibles
                           const found = filteredBarrios.find(b => b.name.toLowerCase() === addr.barrio!.toLowerCase());
                           if (found) setBarrio(found);
                         }
@@ -335,29 +338,40 @@ export default function CustomerInfoSection({
                       setAddingNewAddress(false);
                     }}
                     className={[
-                      "w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
+                      "w-full rounded-lg border px-3 py-3 text-left transition-all",
                       address === addr.direccion
-                        ? "border-gray-900 bg-gray-50 shadow-sm"
-                        : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm",
+                        ? "border-rojo bg-rojo-light shadow-sm"
+                        : "border-gray-200 bg-white hover:border-gray-300",
                     ].join(" ")}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-gray-800">{addr.direccion}</span>
-                      {addr.barrio && (
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{addr.barrio}</span>
+                    <div className="flex items-start gap-2.5">
+                      <MapPin size={14} className={address === addr.direccion ? "text-rojo shrink-0 mt-0.5" : "text-gray-400 shrink-0 mt-0.5"} />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-gray-900 text-sm">{addr.direccion}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {addr.barrio && (
+                            <span className={[
+                              "text-[11px] font-medium px-2 py-0.5 rounded-full",
+                              address === addr.direccion ? "bg-white text-rojo" : "bg-gray-100 text-gray-500",
+                            ].join(" ")}>{addr.barrio}</span>
+                          )}
+                          {addr.referencia && (
+                            <span className="text-[11px] text-gray-400 truncate">Ref: {addr.referencia}</span>
+                          )}
+                        </div>
+                      </div>
+                      {address === addr.direccion && (
+                        <CheckCircle2 size={16} className="text-rojo shrink-0 mt-0.5" />
                       )}
                     </div>
-                    {addr.referencia && (
-                      <div className="text-[11px] text-gray-400 mt-0.5">Ref: {addr.referencia}</div>
-                    )}
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={() => { setAddress(""); setReference(""); setBarrio(null); setAddingNewAddress(true); }}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mt-1"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-rojo hover:text-rojo-dark mt-2 transition-colors"
                 >
-                  <Plus size={12} /> Agregar nueva dirección
+                  <Plus size={16} /> Agregar nueva dirección
                 </button>
               </div>
             </div>
@@ -454,7 +468,7 @@ export default function CustomerInfoSection({
                 <span>{filteredBarrios.length}/{totalBarrios} barrios</span>
                 {barrio ? (
                   <span className="flex items-center gap-1 font-medium text-gray-700">
-                    <CheckCircle2 size={12} className="text-emerald-500" /> {barrio.name}
+                    <CheckCircle2 size={12} className="text-rojo" /> {barrio.name}
                   </span>
                 ) : (
                   <span>Sin barrio seleccionado</span>
@@ -475,7 +489,8 @@ export default function CustomerInfoSection({
           </div>
           )}
 
-          {/* Dirección y referencia */}
+          {/* Dirección y referencia - solo si no hay guardadas o está agregando nueva */}
+          {(savedAddresses.length === 0 || addingNewAddress) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="customer-address" className={labelClass(showErrors && errors.address)}>
@@ -503,6 +518,7 @@ export default function CustomerInfoSection({
               />
             </div>
           </div>
+          )}
 
           {/* Ubicación */}
           <div>
@@ -538,9 +554,9 @@ export default function CustomerInfoSection({
                 )}
               </button>
             ) : (
-              <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <div className="mt-2 rounded-xl border border-rojo bg-rojo-light p-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
+                  <div className="flex items-center gap-2 text-xs font-bold text-rojo">
                     <CheckCircle2 size={14} />
                     Ubicación compartida
                   </div>
@@ -581,10 +597,10 @@ export default function CustomerInfoSection({
       ) : null}
 
       {/* Pago */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="border-t border-gray-200 pt-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rojo">
               <CreditCard size={14} className="text-white" />
             </div>
             <h3 className="text-sm font-bold text-gray-900">Pago</h3>
@@ -601,14 +617,14 @@ export default function CustomerInfoSection({
             className={[
               "relative flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition-all",
               paymentMethod === "Transferencia"
-                ? "border-gray-900 bg-gray-50 shadow-sm"
+                ? "border-rojo bg-rojo-light shadow-sm"
                 : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
             ].join(" ")}
           >
             {paymentMethod === "Transferencia" && (
-              <CheckCircle2 size={14} className="absolute top-2 right-2 text-gray-900" />
+              <CheckCircle2 size={14} className="absolute top-2 right-2 text-rojo" />
             )}
-            <CreditCard size={16} className={paymentMethod === "Transferencia" ? "text-gray-900" : "text-gray-400"} />
+            <CreditCard size={16} className={paymentMethod === "Transferencia" ? "text-rojo" : "text-gray-400"} />
             <span className="text-sm font-medium">Transferencia</span>
           </button>
 
@@ -618,14 +634,14 @@ export default function CustomerInfoSection({
             className={[
               "relative flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition-all",
               paymentMethod === "Efectivo"
-                ? "border-gray-900 bg-gray-50 shadow-sm"
+                ? "border-rojo bg-rojo-light shadow-sm"
                 : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
             ].join(" ")}
           >
             {paymentMethod === "Efectivo" && (
-              <CheckCircle2 size={14} className="absolute top-2 right-2 text-gray-900" />
+              <CheckCircle2 size={14} className="absolute top-2 right-2 text-rojo" />
             )}
-            <Banknote size={16} className={paymentMethod === "Efectivo" ? "text-gray-900" : "text-gray-400"} />
+            <Banknote size={16} className={paymentMethod === "Efectivo" ? "text-rojo" : "text-gray-400"} />
             <span className="text-sm font-medium">Efectivo</span>
           </button>
         </div>

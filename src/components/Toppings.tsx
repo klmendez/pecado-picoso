@@ -44,7 +44,7 @@ export default function Toppings({
           </div>
         </div>
         {ok && count > 0 ? (
-          <span className="text-[10px] text-emerald-600">✓</span>
+          <span className="text-[10px] text-rojo">✓</span>
         ) : null}
       </div>
 

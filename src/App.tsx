@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import CatalogoPage from "./pages/CatalogoPage";
 import ArmarPedido from "./pages/ArmarPedido";
 import AdminDashboard from "./pages/AdminDashboard";
+import OrderDetailPage from "./pages/admin/OrderDetailPage";
 import Terminos from "./pages/Terminos";
 import Contacto from "./pages/Contacto";
 
@@ -22,7 +23,7 @@ function ScrollToTop() {
 
 function AppLayout() {
   const location = useLocation();
-  const isAdmin = location.pathname === "/admin";
+  const isAdmin = location.pathname.startsWith("/admin");
 
   return (
     <div className={`min-h-dvh flex flex-col ${isAdmin ? "bg-gray-50 text-neutral-900" : "bg-crema text-neutral-900"}`}>
@@ -35,6 +36,7 @@ function AppLayout() {
           <Route path="/armar" element={<ArmarPedido />} />
           <Route path="/armar/personalizar" element={<ArmarPedido />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/pedido/:id" element={<OrderDetailPage />} />
           <Route path="/terminos" element={<Terminos />} />
           <Route path="/contacto" element={<Contacto />} />
           <Route path="*" element={<Navigate to="/" replace />} />

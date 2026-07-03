@@ -358,7 +358,7 @@ export default function CartDrawer({
                 
                 {currentLocation && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-green-600">
+                    <div className="flex items-center gap-2 text-sm text-rojo">
                       <CheckCircle size={16} />
                       Ubicación obtenida
                     </div>
@@ -380,16 +380,16 @@ export default function CartDrawer({
 
             {/* Estado del envío */}
             {submitStatus === 'success' && (
-              <div className="mb-4 rounded-2xl border border-green-300 bg-green-50 p-4">
-                <div className="flex items-center gap-2 text-green-600">
+              <div className="mb-4 rounded-2xl border border-rojo bg-rojo-light p-4">
+                <div className="flex items-center gap-2 text-rojo">
                   <CheckCircle size={20} />
                   <span className="font-semibold">¡Pedido creado exitosamente!</span>
                 </div>
-                <p className="mt-2 text-sm text-green-600">
+                <p className="mt-2 text-sm text-rojo">
                   Tu pedido ha sido guardado y pronto recibirás confirmación por WhatsApp.
                 </p>
                 {service === 'domicilio' && currentLocation && (
-                  <p className="mt-1 text-xs text-green-600">
+                  <p className="mt-1 text-xs text-rojo">
                     Tu ubicación se está compartiendo en tiempo real para facilitar la entrega.
                   </p>
                 )}
@@ -419,7 +419,7 @@ export default function CartDrawer({
                 handleSubmitOrder();
               }}
               disabled={isSubmitting || submitStatus === 'success'}
-              className="w-full rounded-full bg-green-600 py-3 font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-full bg-rojo py-3 font-bold text-white hover:bg-rojo-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <div className="flex items-center justify-center gap-2">
@@ -439,25 +439,7 @@ export default function CartDrawer({
               )}
             </button>
 
-            {/* Botón de crear pedido solo (guarda en DB) */}
-            <button
-              onClick={handleSubmitOrder}
-              disabled={isSubmitting || submitStatus === 'success'}
-              className="w-full rounded-full bg-red-600 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Clock size={16} className="animate-spin" />
-                  Creando pedido...
-                </div>
-              ) : submitStatus === 'success' ? (
-                '✅ Pedido creado'
-              ) : (
-                `Solo Guardar Pedido - ${cop(total)}`
-              )}
-            </button>
-            
-            <p className="mt-2 text-center text-xs text-gray-500">
+            <p className="text-center text-xs text-gray-500">
               {currentLocation && service === 'domicilio' ? (
                 '📍 Tu ubicación se incluirá en el mensaje de WhatsApp'
               ) : (

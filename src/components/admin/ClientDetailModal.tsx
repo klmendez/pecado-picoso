@@ -42,7 +42,7 @@ export default function ClientDetailModal({ client, onClose }: ClientDetailModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0, 0, 0, 0.5)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ export default function ClientDetailModal({ client, onClose }: ClientDetailModal
               {client.direcciones && client.direcciones.length > 0 ? (
                 <div className="space-y-2">
                   {client.direcciones.map((addr, idx) => (
-                    <div key={idx} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div key={idx} className="border-b border-gray-100 py-2">
                       <div className="font-medium text-gray-900 text-sm">{addr.direccion}</div>
                       {addr.barrio && (
                         <div className="text-xs text-gray-500 mt-1">Barrio: {addr.barrio}</div>
@@ -138,7 +138,7 @@ export default function ClientDetailModal({ client, onClose }: ClientDetailModal
                   {orders.map((order) => {
                     const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date();
                     return (
-                      <div key={order.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                      <div key={order.id} className="border-b border-gray-100 py-2">
                         <div className="flex items-center justify-between mb-2">
                           <div className="font-mono text-xs font-bold text-gray-900">{order.numeroOrden}</div>
                           <div className="text-xs text-gray-500">

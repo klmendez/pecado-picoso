@@ -1,7 +1,6 @@
 import type { OrderItem } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
 import { toppingsNames, extrasLine } from "./utils";
-import type { ChecklistItem } from "../../hooks/useOrderPricingValidation";
 
 type PricedItem = OrderItem & {
   baseUnit: number;
@@ -19,7 +18,6 @@ type Props = {
   onSend: () => void;
   onRemove: (itemId: string) => void;
   sendDisabledHint: string;
-  checklist: ChecklistItem[];
 };
 
 export default function OrderPricingSidebar({
@@ -31,7 +29,6 @@ export default function OrderPricingSidebar({
   onSend,
   onRemove,
   sendDisabledHint,
-  checklist,
 }: Props) {
   return (
     <aside className="lg:sticky lg:top-24 h-fit">
@@ -112,25 +109,6 @@ export default function OrderPricingSidebar({
       </div>
 
       <div className="mt-6 space-y-4">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">Checklist</div>
-          <ul className="mt-3 space-y-2">
-            {checklist.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 text-[12px]">
-                <span
-                  className={[
-                    "flex h-5 w-5 items-center justify-center text-[11px] font-semibold",
-                    item.ok ? "text-emerald-600" : "text-gray-300",
-                  ].join(" ")}
-                >
-                  {item.ok ? "✓" : "○"}
-                </span>
-                <span className={item.ok ? "text-gray-700" : "text-gray-400"}>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
         <div className="border-t border-gray-200 pt-4 space-y-2 text-sm">
           <div className="flex items-center justify-between text-gray-500">
             <span>Subtotal</span>
@@ -153,10 +131,10 @@ export default function OrderPricingSidebar({
         disabled={!canSend}
         className={[
           "mt-5 w-full py-3 font-semibold transition-colors",
-          canSend ? "bg-green-500 text-white hover:bg-green-600" : "border border-gray-300 text-gray-300 cursor-not-allowed",
+          canSend ? "bg-rojo text-white hover:bg-rojo-dark" : "border border-gray-300 text-gray-300 cursor-not-allowed",
         ].join(" ")}
       >
-        Enviar por WhatsApp
+        Confirmar pedido
       </button>
 
       {!canSend ? <div className="mt-2 text-[11px] text-gray-500">{sendDisabledHint}</div> : null}

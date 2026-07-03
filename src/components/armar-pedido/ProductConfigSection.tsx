@@ -127,7 +127,7 @@ export default function ProductConfigSection({
 
       {showSummary ? (
         <div className="sm:mt-5">
-          <div className="text-xs font-medium text-emerald-600 mb-3">✓ Todo listo</div>
+          <div className="text-xs font-medium text-rojo mb-3">✓ Todo listo</div>
 
           <div className="divide-y divide-gray-100">
             {items.map((it) => {
@@ -168,7 +168,7 @@ export default function ProductConfigSection({
                   <button
                     type="button"
                     onClick={() => onFocusProduct?.(it.id)}
-                    className="text-[10px] text-gray-400 hover:text-gray-900"
+                    className="border border-rojo bg-white text-rojo hover:bg-rojo hover:text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition"
                   >
                     Editar
                   </button>
@@ -180,7 +180,7 @@ export default function ProductConfigSection({
           <button
             type="button"
             onClick={onGoToNext}
-            className="mt-4 w-full border border-gray-900 bg-gray-900 text-white py-3 text-xs font-medium uppercase tracking-[0.15em] active:bg-black sm:w-auto sm:px-8"
+            className="mt-4 w-full border border-rojo bg-rojo text-white py-3 text-xs font-medium uppercase tracking-[0.15em] active:bg-rojo-dark sm:w-auto sm:px-8"
           >
             Datos y envío →
           </button>
@@ -237,7 +237,7 @@ export default function ProductConfigSection({
                     <div className="flex items-center gap-2">
                       <span className={[
                         "text-xs",
-                        isComplete ? "text-emerald-600" : showIncompleteWarning && !isComplete ? "text-rojo" : "text-gray-300",
+                        isComplete ? "text-rojo" : showIncompleteWarning && !isComplete ? "text-rojo" : "text-gray-300",
                       ].join(" ")}>
                         {isComplete ? "✓" : showIncompleteWarning ? "!" : "○"}
                       </span>
@@ -265,7 +265,7 @@ export default function ProductConfigSection({
                       <button
                         type="button"
                         onClick={() => onFocusProduct?.(it.id)}
-                        className="text-[10px] text-gray-400 hover:text-gray-900"
+                        className="border border-rojo bg-white text-rojo hover:bg-rojo hover:text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition"
                       >
                         Editar
                       </button>
@@ -305,7 +305,7 @@ export default function ProductConfigSection({
                               className={[
                                 "border px-3 py-1 text-[11px] font-medium transition",
                                 it.size === s
-                                  ? "border-gray-900 bg-gray-900 text-white"
+                                  ? "border-rojo bg-rojo text-white"
                                   : "border-gray-200 text-gray-500 hover:border-gray-400",
                               ].join(" ")}
                             >
@@ -436,7 +436,7 @@ export default function ProductConfigSection({
                         className={[
                           "border px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em]",
                           isComplete
-                            ? "border-gray-900 bg-gray-900 text-white active:bg-black"
+                            ? "border-rojo bg-rojo text-white active:bg-rojo-dark"
                             : "border-gray-200 text-gray-300 cursor-not-allowed",
                         ].join(" ")}
                       >

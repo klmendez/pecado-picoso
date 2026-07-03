@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Eye, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter
 } from 'lucide-react';
@@ -11,7 +12,6 @@ import { cop } from '../lib/format';
 import AdminAuth from '../components/AdminAuth';
 import AdminLayout from '../components/admin/AdminLayout';
 import OrderEditModal from '../components/admin/OrderEditModal';
-import OrderDetailModal from '../components/admin/OrderDetailModal';
 import ClientDetailModal from '../components/admin/ClientDetailModal';
 
 const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   const [filters, setFilters] = useState<OrderFilters>({ estado: 'todos' });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
+  const navigate = useNavigate();
   const [editingOrder, setEditingOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
   const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias'>('pedidos');
 
@@ -600,7 +600,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* ====== Pedidos en bloques ====== */}
+            {/* ====== Pedidos tabla plana ====== */}
             {loading ? (
               <div className="p-12 text-center text-gray-500 text-sm">Cargando pedidos...</div>
             ) : orders.length === 0 ? (
@@ -608,113 +608,129 @@ export default function AdminDashboard() {
                 <div className="text-gray-400 text-sm">No se encontraron pedidos.</div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {orders.map((order: PedidoFirestore & { id: string }) => {
-                  const elapsed = getElapsedTime(order.createdAt, order.estado);
-                  const colorClass = STATUS_COLORS[order.estado] || 'bg-gray-100 text-gray-600 border-gray-200';
-                  return (
-                    <div key={order.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                      {/* Header: orden + estado + tiempo */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <div>
-                          <div className="font-mono text-xs font-bold text-gray-900">{order.numeroOrden}</div>
-                          <div className="text-[11px] text-gray-400 mt-0.5">{fmtDate(order.createdAt)} · {fmtTime(order.createdAt)}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {elapsed && (
-                            <div className={`flex items-center gap-1 text-[11px] font-semibold ${order.estado === 'entregado' || order.estado === 'cancelado' ? 'text-gray-400' : 'text-orange-600'}`}>
-                              <Clock size={11} />
-                              {elapsed}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e0e0e0', background: '#f5f5f5' }}>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Orden</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Cliente</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Productos</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Total</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Estado</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((order: PedidoFirestore & { id: string }) => {
+                        const elapsed = getElapsedTime(order.createdAt, order.estado);
+                        const colorClass = STATUS_COLORS[order.estado] || 'bg-gray-100 text-gray-600 border-gray-200';
+                        return (
+                          <tr
+                            key={order.id}
+                            onClick={() => navigate(`/admin/pedido/${order.id}`)}
+                            className="cursor-pointer hover:bg-gray-50 transition-colors"
+                            style={{ borderBottom: '1px solid #f0f0f0' }}
+                          >
+                            {/* Orden */}
+                            <td className="px-4 py-3 align-top">
+                              <div className="font-mono text-xs font-bold text-gray-900">{order.numeroOrden}</div>
+                              <div className="text-[11px] text-gray-400 mt-0.5">{fmtDate(order.createdAt)} · {fmtTime(order.createdAt)}</div>
+                              {elapsed && (
+                                <div className={`flex items-center gap-1 text-[11px] font-semibold mt-1 ${order.estado === 'entregado' || order.estado === 'cancelado' ? 'text-gray-400' : 'text-orange-600'}`}>
+                                  <Clock size={11} />
+                                  {elapsed}
+                                </div>
+                              )}
+                            </td>
 
-                      {/* Estado badge */}
-                      <div className="mb-3">
-                        <select
-                          value={order.estado}
-                          onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border cursor-pointer outline-none ${colorClass}`}
-                        >
-                          {(Object.keys(STATUS_LABELS) as (OrderStatus | 'todos')[]).filter(s => s !== 'todos').map(s => (
-                            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                          ))}
-                        </select>
-                      </div>
+                            {/* Cliente */}
+                            <td className="px-4 py-3 align-top">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 shrink-0">
+                                  <span className="text-[11px] font-bold text-gray-600">{order.cliente.nombres.charAt(0).toUpperCase()}</span>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">{order.cliente.nombres}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                    <Phone size={10} />
+                                    <span>{order.cliente.celular}</span>
+                                    <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(order.cliente.celular); }} className="text-green-500 hover:text-green-600" title="WhatsApp">
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+                                    <MapPin size={11} className="text-gray-400 shrink-0" />
+                                    <span className="truncate">{order.cliente.direccion || 'Para llevar'}</span>
+                                    {order.cliente.coordenadas && (
+                                      <button onClick={(e) => { e.stopPropagation(); handleOpenLocation(order); }} className="text-blue-500 hover:text-blue-600 shrink-0" title="Ver en mapa">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
 
-                      {/* Cliente */}
-                      <div className="space-y-1.5 mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 shrink-0">
-                            <span className="text-xs font-bold text-gray-600">{order.cliente.nombres.charAt(0).toUpperCase()}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900 truncate">{order.cliente.nombres}</div>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                              <Phone size={10} />
-                              <span>{order.cliente.celular}</span>
-                              <button onClick={() => handleWhatsApp(order.cliente.celular)} className="text-green-500 hover:text-green-600" title="WhatsApp">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                            {/* Productos */}
+                            <td className="px-4 py-3 align-top">
+                              <div className="space-y-0.5 max-w-[240px]">
+                                {order.items.slice(0, 2).map((item, idx) => (
+                                  <div key={idx} className="text-xs text-gray-600 truncate">
+                                    x{item.qty} {item.product.name}{item.version ? ` (${item.version})` : ''}
+                                  </div>
+                                ))}
+                                {order.items.length > 2 && (
+                                  <div className="text-[11px] text-gray-400">+{order.items.length - 2} mas</div>
+                                )}
+                              </div>
+                            </td>
 
-                        {/* Dirección */}
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 pl-10">
-                          <MapPin size={11} className="text-gray-400 shrink-0" />
-                          <span className="truncate">{order.cliente.direccion || 'Para llevar'}</span>
-                          {order.cliente.coordenadas && (
-                            <button onClick={() => handleOpenLocation(order)} className="text-blue-500 hover:text-blue-600 shrink-0" title="Ver en mapa">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                            {/* Total */}
+                            <td className="px-4 py-3 align-top">
+                              <div className="font-bold text-gray-900">{cop(order.total)}</div>
+                              <div className="text-[11px] text-gray-400">{order.formaPago}</div>
+                            </td>
 
-                      {/* Items resumen */}
-                      <div className="border-t border-gray-100 pt-2 mb-3">
-                        <div className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide mb-1">Productos</div>
-                        <div className="space-y-0.5">
-                          {order.items.slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="text-xs text-gray-600 truncate">
-                              x{item.qty} {item.product.name}{item.version ? ` (${item.version})` : ''}
-                            </div>
-                          ))}
-                          {order.items.length > 3 && (
-                            <div className="text-[11px] text-gray-400">+{order.items.length - 3} más</div>
-                          )}
-                        </div>
-                      </div>
+                            {/* Estado */}
+                            <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={order.estado}
+                                onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
+                                className={`text-xs font-bold px-2 py-1 rounded border cursor-pointer outline-none ${colorClass}`}
+                              >
+                                {(Object.keys(STATUS_LABELS) as (OrderStatus | 'todos')[]).filter(s => s !== 'todos').map(s => (
+                                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                                ))}
+                              </select>
+                            </td>
 
-                      {/* Footer: total + acciones */}
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                        <div>
-                          <div className="text-lg font-bold text-gray-900">{cop(order.total)}</div>
-                          <div className="text-[11px] text-gray-400">{order.formaPago} · {order.servicio === 'domicilio' ? 'Domicilio' : 'Llevar'}</div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedOrder(order)}
-                            title="Ver detalle"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                          ><Eye size={15} /></button>
-                          <button
-                            onClick={() => setEditingOrder(order)}
-                            title="Editar"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-                          ><Edit size={15} /></button>
-                          <button
-                            onClick={() => handleDeleteOrder(order.id)}
-                            title="Eliminar"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
-                          ><Trash2 size={15} /></button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                            {/* Acciones */}
+                            <td className="px-4 py-3 align-top">
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => navigate(`/admin/pedido/${order.id}`)}
+                                  title="Ver detalle"
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                                ><Eye size={15} /></button>
+                                <button
+                                  onClick={() => setEditingOrder(order)}
+                                  title="Editar"
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                                ><Edit size={15} /></button>
+                                <button
+                                  onClick={() => handleDeleteOrder(order.id)}
+                                  title="Eliminar"
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                                ><Trash2 size={15} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -742,7 +758,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Tabla de clientes */}
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div>
               {clientsLoading ? (
                 <div className="p-12 text-center text-gray-500 text-sm">Cargando clientes...</div>
               ) : clients.length === 0 ? (
@@ -751,7 +767,7 @@ export default function AdminDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
+                      <tr style={{ borderBottom: '1px solid #e0e0e0', background: '#f5f5f5' }}>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Cliente</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Teléfono</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Direcciones</th>
@@ -1254,9 +1270,6 @@ export default function AdminDashboard() {
         )}
 
         {/* ====== Modales ====== */}
-        {selectedOrder && (
-          <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-        )}
         {editingOrder && (
           <OrderEditModal order={editingOrder} onClose={() => setEditingOrder(null)} onSave={() => setEditingOrder(null)} />
         )}

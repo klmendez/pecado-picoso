@@ -50,7 +50,11 @@ export interface PedidoFirestore {
   
   // Notas internas del admin
   notaAdmin?: string;
-  
+
+  // Distribución de dinero (para domiciliario / negocio)
+  montoDomiciliario?: number;
+  montoNegocio?: number;
+
   // Historial de cambios de estado
   historialEstado?: {
     estado: OrderStatus;
@@ -77,6 +81,8 @@ export interface OrderUpdate {
   total?: number;
   subtotal?: number;
   delivery?: number;
+  montoDomiciliario?: number;
+  montoNegocio?: number;
   historialEstado?: {
     estado: OrderStatus;
     timestamp: any;

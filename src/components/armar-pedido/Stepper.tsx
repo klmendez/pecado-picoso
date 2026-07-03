@@ -22,13 +22,13 @@ export default function Stepper({ steps, onSelectStep }: Props) {
 
           const textColor =
             step.status === "done"
-              ? "text-emerald-600"
+              ? "text-rojo"
               : step.status === "current"
               ? "text-gray-900"
               : "text-gray-300";
 
           const connectorColor =
-            step.status === "done" ? "bg-emerald-300" : "bg-gray-200";
+            step.status === "done" ? "bg-rojo" : "bg-gray-200";
 
           return (
             <li key={step.id} className="flex items-center flex-1 min-w-0">

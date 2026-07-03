@@ -22,13 +22,14 @@ import { useBarrioSelection } from "../hooks/useBarrioSelection";
 import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
 import { useStoreProducts } from "../hooks/useStoreProducts";
 
-const STEP_SEQUENCE = ["productos", "configuracion", "datos"] as const;
+const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
 type StepId = (typeof STEP_SEQUENCE)[number];
 
 const STEP_META: Record<StepId, { title: string; description: string }> = {
   productos: { title: "Elige", description: "Agrega productos" },
   configuracion: { title: "Personaliza", description: "Ajusta cada uno" },
-  datos: { title: "Completa y envía", description: "Datos, resumen y envío" },
+  datos: { title: "Datos", description: "Tu info y envío" },
+  resumen: { title: "Resumen", description: "Confirma y envía" },
 };
 
 export default function ArmarPedido() {
@@ -58,7 +59,7 @@ export default function ArmarPedido() {
     totalBarrios,
   } = useBarrioSelection(service);
 
-  const { pricedItems, subtotal, delivery, total, checklist, canSend, sendDisabledHint, validation } =
+  const { pricedItems, subtotal, delivery, total, canSend, sendDisabledHint, validation } =
     useOrderPricingValidation({ items, service, barrio, address, name, phone });
 
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
@@ -142,10 +143,6 @@ export default function ArmarPedido() {
   const handleAddProduct = (product: Product) => {
     manualProductCloseRef.current = false;
     addProduct(product);
-    setStepIndex(1);
-    if (isMobile) {
-      navigate("/armar/personalizar");
-    }
   };
 
   const handleRemoveItem = (itemId: string) => {
@@ -187,7 +184,7 @@ export default function ArmarPedido() {
       return;
     }
 
-    if (currentStepId === "datos") {
+    if (currentStepId === "datos" || currentStepId === "resumen") {
       if (!itemsOk) {
         setStepIndex(0);
         return;
@@ -197,7 +194,14 @@ export default function ArmarPedido() {
         return;
       }
     }
-  }, [currentStepId, itemsOk, itemsConfigOk]);
+
+    if (currentStepId === "resumen") {
+      if (!customerOk || !deliveryOk) {
+        setStepIndex(2);
+        return;
+      }
+    }
+  }, [currentStepId, itemsOk, itemsConfigOk, customerOk, deliveryOk]);
 
   const handleSend = () => {
     if (!canSend) return;
@@ -217,6 +221,8 @@ export default function ArmarPedido() {
       case "configuracion":
         return itemsConfigOk;
       case "datos":
+        return customerOk && deliveryOk;
+      case "resumen":
         return canSend;
       default:
         return false;
@@ -329,17 +335,28 @@ export default function ArmarPedido() {
       return {
         back: { label: "Productos", onClick: () => setStepIndex(0), disabled: false },
         next: {
-          label: "Datos y envío",
+          label: "Datos",
           onClick: goToNextStep,
           disabled: !canAdvanceFromStep("configuracion"),
         },
       };
     }
 
+    if (currentStepId === "datos") {
+      return {
+        back: { label: "Personalizar", onClick: () => setStepIndex(1), disabled: false },
+        next: {
+          label: "Ver resumen",
+          onClick: goToNextStep,
+          disabled: !canAdvanceFromStep("datos"),
+        },
+      };
+    }
+
     return {
-      back,
+      back: { label: "Datos", onClick: () => setStepIndex(2), disabled: false },
       next: {
-        label: "Enviar por WhatsApp",
+        label: "Confirmar pedido",
         onClick: handleSend,
         disabled: !canSend,
       },
@@ -413,7 +430,7 @@ export default function ArmarPedido() {
   );
 
   const renderDatosStep = () => (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <CustomerInfoSection
         name={name}
         setName={setName}
@@ -445,27 +462,80 @@ export default function ArmarPedido() {
         onLocationChange={setCustomerLocation}
       />
 
-      <div className="border-t border-gray-200 pt-6">
-        <OrderPricingSidebar
-          items={pricedItems}
-          subtotal={subtotal}
-          delivery={delivery}
-          total={total}
-          canSend={canSend}
-          onSend={handleSend}
-          onRemove={handleRemoveItem}
-          sendDisabledHint={sendDisabledHint}
-          checklist={checklist}
-        />
-      </div>
+      {/* Indicador de lo que falta */}
+      {!canAdvanceFromStep("datos") && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Completa para continuar
+          </div>
+          <ul className="space-y-1.5">
+            {customerErrors.name && (
+              <li className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="text-rojo">○</span> Falta tu nombre
+              </li>
+            )}
+            {customerErrors.phone && (
+              <li className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="text-rojo">○</span> Falta tu teléfono
+              </li>
+            )}
+            {service === "domicilio" && customerErrors.barrio && (
+              <li className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="text-rojo">○</span> Falta seleccionar un barrio
+              </li>
+            )}
+            {service === "domicilio" && customerErrors.address && (
+              <li className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="text-rojo">○</span> Falta tu dirección
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
-      <div className="hidden sm:flex sm:justify-start">
+      <div className="hidden sm:flex sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={goToPreviousStep}
           className="border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
         >
           Volver a personalización
+        </button>
+        <button
+          type="button"
+          onClick={goToNextStep}
+          disabled={!canAdvanceFromStep("datos")}
+          className={[
+            "border border-gray-300 px-6 py-2 text-sm font-semibold transition",
+            canAdvanceFromStep("datos") ? "text-black hover:border-black" : "text-gray-300 cursor-not-allowed",
+          ].join(" ")}
+        >
+          Ver resumen
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderResumenStep = () => (
+    <div className="space-y-6">
+      <OrderPricingSidebar
+        items={pricedItems}
+        subtotal={subtotal}
+        delivery={delivery}
+        total={total}
+        canSend={canSend}
+        onSend={handleSend}
+        onRemove={handleRemoveItem}
+        sendDisabledHint={sendDisabledHint}
+      />
+
+      <div className="hidden sm:flex sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={goToPreviousStep}
+          className="border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:text-black"
+        >
+          Volver a datos
         </button>
       </div>
     </div>
@@ -479,12 +549,14 @@ export default function ArmarPedido() {
         return renderConfigStep();
       case "datos":
         return renderDatosStep();
+      case "resumen":
+        return renderResumenStep();
       default:
         return null;
     }
   })();
 
-  const mobileDetailMode = isMobile && currentStepId !== "productos";
+  const mobileDetailMode = isMobile;
 
   const desktopOrCatalogLayout = (
     <div className="bg-crema text-neutral-900 pt-[56px] sm:pt-20 lg:pt-24">
@@ -506,24 +578,35 @@ export default function ArmarPedido() {
         <button
           type="button"
           onClick={footerCTA.back.onClick}
-          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500"
+          disabled={footerCTA.back.disabled}
+          className="inline-flex items-center gap-1.5 text-sm font-bold active:opacity-70 disabled:text-gray-300"
+          style={{ color: footerCTA.back.disabled ? undefined : '#D64045' }}
         >
           <span aria-hidden>←</span>
           {footerCTA.back.label}
         </button>
 
-        <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-gray-900">
+        <div className="text-xs font-bold uppercase tracking-[0.2em] text-gray-900">
           {STEP_META[currentStepId].title}
         </div>
 
-        <div className="w-12" />
+        <button
+          type="button"
+          onClick={footerCTA.next.onClick}
+          disabled={footerCTA.next.disabled}
+          className="inline-flex items-center gap-1.5 text-sm font-bold active:opacity-70 disabled:text-gray-300"
+          style={{ color: footerCTA.next.disabled ? undefined : '#D64045' }}
+        >
+          {footerCTA.next.label}
+          <span aria-hidden>→</span>
+        </button>
       </div>
 
       <div className="flex-1 px-4 pt-[36px]">
         {stepContent}
       </div>
 
-      <div className="sticky bottom-0 z-40 flex items-center gap-2 border-t border-gray-200 bg-crema px-4 py-3">
+      <div className="sticky bottom-0 z-40 flex items-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
         <button
           type="button"
           onClick={footerCTA.back.onClick}
@@ -545,9 +628,9 @@ export default function ArmarPedido() {
           className={[
             "flex-[1.5] border px-3 py-2.5 text-[10px] font-medium uppercase tracking-[0.15em]",
             !footerCTA.next.disabled
-              ? currentStepId === "datos"
-                ? "border-green-600 bg-green-600 text-white active:bg-green-700"
-                : "border-gray-900 bg-gray-900 text-white active:bg-black"
+              ? currentStepId === "resumen"
+                ? "border-rojo bg-rojo text-white active:bg-rojo-dark"
+                : "border-rojo bg-rojo text-white active:bg-rojo-dark"
               : "border-gray-200 text-gray-300",
           ].join(" ")}
         >

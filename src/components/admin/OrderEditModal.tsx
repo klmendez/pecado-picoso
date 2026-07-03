@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Plus, Minus, Trash2 } from 'lucide-react';
+import { deleteField } from 'firebase/firestore';
 import { OrderService } from '../../services/orderService';
 import type { PedidoFirestore, OrderStatus, PaymentDetail } from '../../types/order';
 import type { PaymentMethod, Service } from '../../lib/whatsapp';
@@ -103,18 +104,24 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
         throw new Error('Debe haber al menos un producto');
       }
 
-      await OrderService.updateOrder(order.id, {
+      const updateData: any = {
         cliente: editedOrder.cliente,
         items: editedOrder.items,
         formaPago: editedOrder.formaPago,
-        detallesPago: usarPagosMixtos ? detallesPago : undefined,
         servicio: editedOrder.servicio,
         estado: editedOrder.estado,
         notaAdmin: editedOrder.notaAdmin,
         subtotal: editedOrder.subtotal,
         delivery: editedOrder.delivery,
         total: editedOrder.total
-      });
+      };
+      if (usarPagosMixtos) {
+        updateData.detallesPago = detallesPago;
+      } else {
+        updateData.detallesPago = deleteField();
+      }
+
+      await OrderService.updateOrder(order.id, updateData);
 
       onSave();
       onClose();
@@ -172,13 +179,13 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
             <div className="space-y-6">
               {/* Error */}
               {error && (
-                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-600">
+                <div className="border border-red-300 bg-red-50 p-4 text-red-600">
                   {error}
                 </div>
               )}
 
               {/* Estado y configuración básica */}
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Estado y Configuración</h3>
                 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -241,7 +248,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                     ) : (
                       <div className="mt-3 space-y-2">
                         {detallesPago.map((pago, idx) => (
-                          <div key={idx} className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                          <div key={idx} className="flex items-center gap-2 p-3 border-b border-gray-100">
                             <select
                               value={pago.metodo}
                               onChange={(e) => {
@@ -311,7 +318,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               </div>
 
               {/* Información del cliente */}
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Información del Cliente</h3>
                 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -360,7 +367,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                         <label className="block text-sm font-medium text-gray-500">Barrio</label>
                         {editedOrder.cliente.barrio ? (
                           <div className="mt-1 flex items-center gap-2">
-                            <span className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-black">
+                            <span className="flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-black">
                               {editedOrder.cliente.barrio} — Envío: {cop(order.delivery)}
                             </span>
                           </div>
@@ -394,12 +401,12 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               </div>
 
               {/* Productos */}
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Productos ({editedOrder.items.length})</h3>
                 
                 <div className="space-y-3">
                   {editedOrder.items.map((item, index) => (
-                    <div key={item.id || index} className="rounded-lg border border-gray-200 bg-gray-100 p-3">
+                    <div key={item.id || index} className="border-b border-gray-100 py-2">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <h4 className="font-semibold text-black">{item.product.name}</h4>
@@ -439,7 +446,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                   ))}
                   
                   {editedOrder.items.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-gray-500">
+                    <div className="border border-dashed border-gray-300 p-6 text-center text-gray-500">
                       No hay productos en este pedido
                     </div>
                   )}
@@ -447,7 +454,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               </div>
 
               {/* Totales */}
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Totales</h3>
                 
                 <div className="space-y-2">
@@ -467,7 +474,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               </div>
 
               {/* Nota del admin */}
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Nota del Administrador</h3>
                 <textarea
                   value={editedOrder.notaAdmin}

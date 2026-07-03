@@ -4,8 +4,8 @@ import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download,
 import { getAuth, signOut } from 'firebase/auth';
 
 interface AdminLayoutProps {
-  activeSection: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias';
-  onChangeSection: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias') => void;
+  activeSection?: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias';
+  onChangeSection?: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias') => void;
   onExportCSV?: () => void;
   children: React.ReactNode;
 }
@@ -26,7 +26,7 @@ const sectionTitles: Record<string, string> = {
   estadisticas: 'Estadísticas',
 };
 
-export default function AdminLayout({ activeSection, onChangeSection, onExportCSV, children }: AdminLayoutProps) {
+export default function AdminLayout({ activeSection = 'pedidos', onChangeSection = () => {}, onExportCSV, children }: AdminLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const user = getAuth().currentUser;

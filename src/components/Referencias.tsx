@@ -36,7 +36,7 @@ export default function Referencias({
           <div className="text-[11px] text-gray-500">{subtitle}</div>
         </div>
         {value ? (
-          <span className="text-[10px] text-emerald-600">✓</span>
+          <span className="text-[10px] text-rojo">✓</span>
         ) : null}
       </div>
 

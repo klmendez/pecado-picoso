@@ -44,7 +44,7 @@ export default function ProductSelectionSection({
       </div>
 
       {selectedIds.length ? (
-        <div className="mt-5 flex items-center gap-2 text-sm text-emerald-600">
+        <div className="mt-5 flex items-center gap-2 text-sm text-rojo">
           <span>✓</span>
           <span>{selectedIds.length} {selectedIds.length === 1 ? "producto seleccionado" : "productos seleccionados"}</span>
         </div>
