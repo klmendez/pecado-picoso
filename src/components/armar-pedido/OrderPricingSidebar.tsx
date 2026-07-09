@@ -1,6 +1,7 @@
 import type { OrderItem } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
 import { toppingsNames, extrasLine } from "./utils";
+import type { AppliedPromotion } from "../../types/promotion";
 
 type PricedItem = OrderItem & {
   baseUnit: number;
@@ -18,6 +19,8 @@ type Props = {
   onSend: () => void;
   onRemove: (itemId: string) => void;
   sendDisabledHint: string;
+  descuentoTotal?: number;
+  appliedPromotions?: AppliedPromotion[];
 };
 
 export default function OrderPricingSidebar({
@@ -29,6 +32,8 @@ export default function OrderPricingSidebar({
   onSend,
   onRemove,
   sendDisabledHint,
+  descuentoTotal = 0,
+  appliedPromotions = [],
 }: Props) {
   return (
     <aside className="lg:sticky lg:top-24 h-fit">
@@ -118,9 +123,28 @@ export default function OrderPricingSidebar({
             <span>Envío</span>
             <span>{cop(delivery)}</span>
           </div>
+          {descuentoTotal > 0 && (
+            <>
+              {appliedPromotions.map((p, i) => (
+                <div key={i} className="flex items-center justify-between text-rojo font-semibold">
+                  <span className="text-xs">{p.nombre}</span>
+                  <span>-{cop(p.descuento)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-rojo font-bold bg-rojo-light rounded px-2 py-1">
+                <span>Te ahorras</span>
+                <span>-{cop(descuentoTotal)}</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center justify-between border-t border-gray-200 pt-2 text-black font-semibold text-lg">
             <span>Total</span>
-            <span>{cop(total)}</span>
+            <div className="text-right">
+              {descuentoTotal > 0 && (
+                <div className="text-xs text-gray-400 line-through">{cop(subtotal + delivery)}</div>
+              )}
+              <span>{cop(total)}</span>
+            </div>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { EXTRAS } from "../data/extras";
 import type { OrderItem, Service } from "../lib/whatsapp";
 import { deliveryCost, extrasTotal, getBasePrice } from "../lib/pricing";
 import { maxToppingsFor } from "../components/armar-pedido/utils";
+import type { Promotion, AppliedPromotion } from "../types/promotion";
 
 export type ChecklistItem = {
   id: "products" | "config" | "customer" | "delivery" | "total";
@@ -27,6 +28,7 @@ type Params = {
   address: string;
   name: string;
   phone: string;
+  promotions?: (Promotion & { id: string })[];
 };
 
 type Result = {
@@ -39,13 +41,16 @@ type Result = {
   subtotal: number;
   delivery: number;
   total: number;
+  descuentoTotal: number;
+  totalConDescuento: number;
+  appliedPromotions: AppliedPromotion[];
   checklist: ChecklistItem[];
   validation: OrderValidationSnapshot;
   canSend: boolean;
   sendDisabledHint: string;
 };
 
-export function useOrderPricingValidation({ items, service, barrio, address, name, phone }: Params): Result {
+export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [] }: Params): Result {
   const pricedItems = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(
@@ -62,7 +67,57 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
 
   const subtotal = useMemo(() => pricedItems.reduce((sum, it) => sum + it.line, 0), [pricedItems]);
   const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
-  const total = subtotal + delivery;
+
+  const { descuentoTotal, appliedPromotions } = useMemo(() => {
+    if (!promotions.length || !pricedItems.length) return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[] };
+
+    const applied: AppliedPromotion[] = [];
+    let totalDiscount = 0;
+
+    for (const promo of promotions) {
+      if (!promo.activa) continue;
+      const targetItems = promo.productosIds?.length
+        ? pricedItems.filter(it => promo.productosIds.includes(it.product.id))
+        : pricedItems;
+
+      if (!targetItems.length) continue;
+
+      if (promo.cantidadMinima) {
+        const totalQty = targetItems.reduce((s, it) => s + it.qty, 0);
+        if (totalQty < promo.cantidadMinima) continue;
+      }
+
+      let discount = 0;
+      if (promo.tipo === 'porcentaje') {
+        const itemsSubtotal = targetItems.reduce((s, it) => s + it.line, 0);
+        discount = Math.round(itemsSubtotal * promo.valor / 100);
+      } else if (promo.tipo === 'valor_fijo') {
+        discount = promo.valor;
+      } else if (promo.tipo === '2x1') {
+        // For each pair, discount the cheapest
+        for (const it of targetItems) {
+          const freeItems = Math.floor(it.qty / 2);
+          if (freeItems > 0) discount += it.unit * freeItems;
+        }
+      }
+
+      if (discount > 0) {
+        totalDiscount += discount;
+        applied.push({
+          promoId: promo.id,
+          nombre: promo.nombre,
+          tipo: promo.tipo,
+          valor: promo.valor,
+          descuento: discount,
+        });
+      }
+    }
+
+    return { descuentoTotal: totalDiscount, appliedPromotions: applied };
+  }, [pricedItems, promotions]);
+
+  const total = subtotal + delivery - descuentoTotal;
+  const totalConDescuento = total;
 
   const validation = useMemo<OrderValidationSnapshot>(() => {
     const itemsOk = items.length > 0;
@@ -118,6 +173,9 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
     subtotal,
     delivery,
     total,
+    descuentoTotal,
+    totalConDescuento,
+    appliedPromotions,
     checklist,
     validation,
     canSend,

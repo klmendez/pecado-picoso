@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
+import type { AppliedPromotion } from './promotion';
 
 export interface PaymentDetail {
   metodo: PaymentMethod;
@@ -61,6 +62,10 @@ export interface PedidoFirestore {
     timestamp: Timestamp;
     nota?: string;
   }[];
+
+  // Promociones aplicadas
+  promociones?: AppliedPromotion[];
+  descuentoTotal?: number;
 }
 
 export interface OrderFilters {
@@ -88,4 +93,6 @@ export interface OrderUpdate {
     timestamp: any;
     nota?: string;
   }[];
+  promociones?: AppliedPromotion[];
+  descuentoTotal?: number;
 }

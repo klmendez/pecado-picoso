@@ -21,6 +21,7 @@ import { useOrderItems } from "../hooks/useOrderItems";
 import { useBarrioSelection } from "../hooks/useBarrioSelection";
 import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
 import { useStoreProducts } from "../hooks/useStoreProducts";
+import { usePromotions } from "../hooks/usePromotions";
 
 const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
 type StepId = (typeof STEP_SEQUENCE)[number];
@@ -59,8 +60,10 @@ export default function ArmarPedido() {
     totalBarrios,
   } = useBarrioSelection(service);
 
-  const { pricedItems, subtotal, delivery, total, canSend, sendDisabledHint, validation } =
-    useOrderPricingValidation({ items, service, barrio, address, name, phone });
+  const { promotions } = usePromotions();
+
+  const { pricedItems, subtotal, delivery, total, descuentoTotal, appliedPromotions, canSend, sendDisabledHint, validation } =
+    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions });
 
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -527,6 +530,8 @@ export default function ArmarPedido() {
         onSend={handleSend}
         onRemove={handleRemoveItem}
         sendDisabledHint={sendDisabledHint}
+        descuentoTotal={descuentoTotal}
+        appliedPromotions={appliedPromotions}
       />
 
       <div className="hidden sm:flex sm:items-center sm:justify-between">
@@ -661,6 +666,8 @@ export default function ArmarPedido() {
         subtotal={subtotal}
         delivery={delivery}
         total={total}
+        descuentoTotal={descuentoTotal}
+        appliedPromotions={appliedPromotions}
         name={name}
         phone={phone}
         service={service}

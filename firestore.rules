@@ -22,6 +22,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Coleccion de promociones: lectura abierta, escritura para admin
+    match /promociones/{doc} {
+      allow read, write: if true;
+    }
+
     // Fallback para otras colecciones futuras
     match /{document=**} {
       allow read, write: if false;

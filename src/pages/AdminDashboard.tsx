@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Eye, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter
 } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 import { OrderService } from '../services/orderService';
 import { ProductService, type FirestoreProduct } from '../services/productService';
 import { ClientService, type FirestoreClient } from '../services/clientService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
+import { PromotionService } from '../services/promotionService';
 import type { PedidoFirestore, OrderFilters, OrderStatus } from '../types/order';
+import type { Promotion, PromotionType } from '../types/promotion';
 import { cop } from '../lib/format';
 import AdminAuth from '../components/AdminAuth';
 import AdminLayout from '../components/admin/AdminLayout';
@@ -35,7 +38,7 @@ export default function AdminDashboard() {
   const [filterOpen, setFilterOpen] = useState(false);
   const navigate = useNavigate();
   const [editingOrder, setEditingOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias'>('pedidos');
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones'>('pedidos');
 
   const [products, setProducts] = useState<FirestoreProduct[]>([]);
   const [prodLoading, setProdLoading] = useState(false);
@@ -68,6 +71,99 @@ export default function AdminDashboard() {
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<FirestoreClient | null>(null);
 
+
+  // Promociones state
+  const [promos, setPromos] = useState<(Promotion & { id: string })[]>([]);
+  const [promosLoading, setPromosLoading] = useState(false);
+  const [promoForm, setPromoForm] = useState({
+    nombre: '',
+    descripcion: '',
+    tipo: 'porcentaje' as PromotionType,
+    valor: '',
+    productosIds: '' as string,
+    cantidadMinima: '',
+    activa: true,
+    fechaInicio: '',
+    fechaFin: '',
+  });
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  const loadPromos = async () => {
+    setPromosLoading(true);
+    try {
+      const data = await PromotionService.getPromotions();
+      setPromos(data);
+    } catch (err: any) {
+      setPromoError(err.message || 'Error al cargar promociones');
+    } finally {
+      setPromosLoading(false);
+    }
+  };
+
+  const handleSavePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoForm.nombre.trim() || !promoForm.valor) return;
+    setPromoError(null);
+    try {
+      const data: any = {
+        nombre: promoForm.nombre.trim(),
+        descripcion: promoForm.descripcion.trim(),
+        tipo: promoForm.tipo,
+        valor: Number(promoForm.valor),
+        productosIds: promoForm.productosIds ? promoForm.productosIds.split(',').map(s => s.trim()).filter(Boolean) : [],
+        cantidadMinima: promoForm.cantidadMinima ? Number(promoForm.cantidadMinima) : undefined,
+        activa: promoForm.activa,
+      };
+      if (promoForm.fechaInicio) data.fechaInicio = Timestamp.fromDate(new Date(promoForm.fechaInicio));
+      if (promoForm.fechaFin) data.fechaFin = Timestamp.fromDate(new Date(promoForm.fechaFin));
+
+      if (editingPromoId) {
+        await PromotionService.updatePromotion(editingPromoId, data);
+        setEditingPromoId(null);
+      } else {
+        await PromotionService.addPromotion(data);
+      }
+      setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', activa: true, fechaInicio: '', fechaFin: '' });
+      await loadPromos();
+    } catch (err: any) {
+      setPromoError(err.message || 'Error al guardar');
+    }
+  };
+
+  const handleEditPromo = (p: Promotion & { id: string }) => {
+    setEditingPromoId(p.id);
+    setPromoForm({
+      nombre: p.nombre,
+      descripcion: p.descripcion || '',
+      tipo: p.tipo,
+      valor: String(p.valor),
+      productosIds: (p.productosIds || []).join(', '),
+      cantidadMinima: p.cantidadMinima ? String(p.cantidadMinima) : '',
+      activa: p.activa,
+      fechaInicio: p.fechaInicio?.toDate ? p.fechaInicio.toDate().toISOString().slice(0, 16) : '',
+      fechaFin: p.fechaFin?.toDate ? p.fechaFin.toDate().toISOString().slice(0, 16) : '',
+    });
+  };
+
+  const handleDeletePromo = async (id: string) => {
+    if (!confirm('¿Eliminar esta promoción?')) return;
+    try {
+      await PromotionService.deletePromotion(id);
+      await loadPromos();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const handleTogglePromo = async (p: Promotion & { id: string }) => {
+    try {
+      await PromotionService.updatePromotion(p.id, { activa: !p.activa });
+      await loadPromos();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
 
   const stats = {
     total: orders.length,
@@ -136,6 +232,9 @@ export default function AdminDashboard() {
     }
     if (activeTab === 'clientes') {
       loadClients();
+    }
+    if (activeTab === 'promociones') {
+      loadPromos();
     }
   }, [activeTab]);
 
@@ -1263,6 +1362,211 @@ export default function AdminDashboard() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'promociones' && (
+          <div className="space-y-6">
+            {/* Formulario */}
+            <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px', padding: '20px' }}>
+              <h2 className="text-base font-medium mb-4" style={{ color: '#333' }}>
+                {editingPromoId ? 'Editar promoción' : 'Crear promoción'}
+              </h2>
+              {promoError && (
+                <div className="mb-3 p-2 text-sm" style={{ background: '#fff0f0', color: '#e85a5a', borderRadius: '4px' }}>{promoError}</div>
+              )}
+              <form onSubmit={handleSavePromo} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Nombre *</label>
+                    <input
+                      value={promoForm.nombre}
+                      onChange={e => setPromoForm({ ...promoForm, nombre: e.target.value })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      placeholder="Ej: 2x1 en gomitas"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tipo *</label>
+                    <select
+                      value={promoForm.tipo}
+                      onChange={e => setPromoForm({ ...promoForm, tipo: e.target.value as PromotionType })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    >
+                      <option value="porcentaje">Porcentaje (%)</option>
+                      <option value="valor_fijo">Valor fijo ($)</option>
+                      <option value="2x1">2x1</option>
+                      <option value="combo">Combo</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      {promoForm.tipo === 'porcentaje' ? 'Porcentaje (1-100) *' : promoForm.tipo === 'valor_fijo' ? 'Monto descuento ($) *' : 'Valor *'}
+                    </label>
+                    <input
+                      type="number"
+                      value={promoForm.valor}
+                      onChange={e => setPromoForm({ ...promoForm, valor: e.target.value })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      placeholder={promoForm.tipo === 'porcentaje' ? '10' : '5000'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Cantidad mínima (opcional)</label>
+                    <input
+                      type="number"
+                      value={promoForm.cantidadMinima}
+                      onChange={e => setPromoForm({ ...promoForm, cantidadMinima: e.target.value })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      placeholder="Ej: 2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Descripción (opcional)</label>
+                  <input
+                    value={promoForm.descripcion}
+                    onChange={e => setPromoForm({ ...promoForm, descripcion: e.target.value })}
+                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    placeholder="Descripción para el cliente"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">IDs de productos (separados por coma, vacío = todos)</label>
+                  <input
+                    value={promoForm.productosIds}
+                    onChange={e => setPromoForm({ ...promoForm, productosIds: e.target.value })}
+                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    placeholder="minipecado-40, pecado-real"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Fecha inicio (opcional)</label>
+                    <input
+                      type="datetime-local"
+                      value={promoForm.fechaInicio}
+                      onChange={e => setPromoForm({ ...promoForm, fechaInicio: e.target.value })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Fecha fin (opcional)</label>
+                    <input
+                      type="datetime-local"
+                      value={promoForm.fechaFin}
+                      onChange={e => setPromoForm({ ...promoForm, fechaFin: e.target.value })}
+                      className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={promoForm.activa}
+                      onChange={e => setPromoForm({ ...promoForm, activa: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    Activa
+                  </label>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-rojo hover:bg-rojo-dark transition rounded"
+                  >
+                    {editingPromoId ? 'Guardar cambios' : 'Crear promoción'}
+                  </button>
+                  {editingPromoId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPromoId(null);
+                        setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', activa: true, fechaInicio: '', fechaFin: '' });
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition rounded"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Lista de promociones */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Promociones existentes</h3>
+              {promosLoading ? (
+                <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
+              ) : promos.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 text-sm">No hay promociones creadas.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e0e0e0', background: '#f5f5f5' }}>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Nombre</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Tipo</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Valor</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Productos</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Estado</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {promos.map(p => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0' }} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">{p.nombre}</div>
+                            {p.descripcion && <div className="text-xs text-gray-400 mt-0.5">{p.descripcion}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {p.tipo === 'porcentaje' ? 'Porcentaje' : p.tipo === 'valor_fijo' ? 'Valor fijo' : p.tipo === '2x1' ? '2x1' : 'Combo'}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">
+                            {p.tipo === 'porcentaje' ? `${p.valor}%` : cop(p.valor)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {p.productosIds?.length ? p.productosIds.join(', ') : 'Todos'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleTogglePromo(p)}
+                              className={`text-xs font-bold px-2 py-1 rounded cursor-pointer ${p.activa ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                            >
+                              {p.activa ? 'Activa' : 'Inactiva'}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleEditPromo(p)}
+                                title="Editar"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                              ><Edit size={15} /></button>
+                              <button
+                                onClick={() => handleDeletePromo(p.id)}
+                                title="Eliminar"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
+                              ><Trash2 size={15} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

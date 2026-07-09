@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut, Users } from 'lucide-react';
+import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut, Users, Tag } from 'lucide-react';
 import { getAuth, signOut } from 'firebase/auth';
 
 interface AdminLayoutProps {
-  activeSection?: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias';
-  onChangeSection?: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias') => void;
+  activeSection?: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones';
+  onChangeSection?: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones') => void;
   onExportCSV?: () => void;
   children: React.ReactNode;
 }
@@ -15,6 +15,7 @@ const sections = [
   { id: 'clientes' as const, label: 'Clientes', icon: Users },
   { id: 'categorias' as const, label: 'Categorías', icon: Package },
   { id: 'productos' as const, label: 'Productos', icon: Package },
+  { id: 'promociones' as const, label: 'Promociones', icon: Tag },
   { id: 'estadisticas' as const, label: 'Estadísticas', icon: BarChart3 },
 ];
 
@@ -23,6 +24,7 @@ const sectionTitles: Record<string, string> = {
   clientes: 'Clientes',
   categorias: 'Categorías',
   productos: 'Productos',
+  promociones: 'Promociones',
   estadisticas: 'Estadísticas',
 };
 

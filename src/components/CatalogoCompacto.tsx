@@ -131,70 +131,72 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
 
               {/* BACK */}
               <div
-                className="absolute inset-0 flex gap-3 bg-rojo cursor-pointer"
+                className="absolute inset-0 flex flex-col bg-rojo cursor-pointer overflow-y-auto"
                 style={{
                   backfaceVisibility: "hidden",
                   transform: "rotateY(180deg)",
                 }}
                 onClick={() => setFlippedId(null)}
               >
-                <div className="relative w-24 sm:w-36 flex-shrink-0 overflow-hidden bg-rojo-dark" style={{ aspectRatio: "4/5" }}>
-                  {p.image ? (
-                    <img src={p.image} alt={p.name} className="h-full w-full object-cover opacity-40" loading="lazy" />
-                  ) : null}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2">
-                    {count === 0 ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onAdd(p); }}
-                        className="w-full border border-white bg-white text-rojo-dark py-1.5 text-[10px] font-medium uppercase tracking-wider active:bg-white/80"
-                      >
-                        Agregar
-                      </button>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onRemoveLast(p.id); }}
-                            className="flex h-7 w-7 items-center justify-center border border-white/50 text-sm text-white active:bg-white/20"
-                          >
-                            −
-                          </button>
-                          <span className="w-5 text-center text-xs font-medium text-white">{count}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onAdd(p); }}
-                            className="flex h-7 w-7 items-center justify-center border border-white bg-white text-sm text-rojo-dark active:bg-white/80"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <span className="text-[9px] text-white/50">{count} en pedido</span>
-                      </>
-                    )}
+                <div className="flex gap-3 flex-1 min-h-0">
+                  <div className="relative w-20 sm:w-28 flex-shrink-0 overflow-hidden bg-rojo-dark">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="h-full w-full object-cover opacity-40" loading="lazy" />
+                    ) : null}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2">
+                      {count === 0 ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onAdd(p); }}
+                          className="w-full border border-white bg-white text-rojo-dark py-1.5 text-[10px] font-medium uppercase tracking-wider active:bg-white/80"
+                        >
+                          Agregar
+                        </button>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onRemoveLast(p.id); }}
+                              className="flex h-7 w-7 items-center justify-center border border-white/50 text-sm text-white active:bg-white/20"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center text-xs font-medium text-white">{count}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onAdd(p); }}
+                              className="flex h-7 w-7 items-center justify-center border border-white bg-white text-sm text-rojo-dark active:bg-white/80"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="text-[9px] text-white/50">{count} en pedido</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex flex-col justify-center py-2 min-w-0 flex-1 pr-2">
-                  <span className="text-[9px] uppercase tracking-widest text-white/50 font-medium">
-                    {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
-                  </span>
-                  <h3 className="mt-0.5 text-sm font-medium text-white leading-tight">{p.name}</h3>
-                  {details ? (
-                    <p className="mt-1 text-[11px] text-white/60 leading-snug">{details}</p>
-                  ) : null}
-                  <div className="mt-1 text-[10px] text-white/50">
-                    {p.category === "gomitas"
-                      ? "Ahogada o picosa"
-                      : (p.toppingsIncludedMax ?? 0) > 0
-                        ? `Hasta ${p.toppingsIncludedMax} toppings`
-                        : "Personalizable"}
+                  <div className="flex flex-col justify-center py-3 min-w-0 flex-1 pr-3">
+                    <span className="text-[9px] uppercase tracking-widest text-white/50 font-medium">
+                      {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
+                    </span>
+                    <h3 className="mt-0.5 text-sm font-semibold text-white leading-tight">{p.name}</h3>
+                    {details ? (
+                      <p className="mt-1.5 text-xs text-white/80 leading-relaxed">{details}</p>
+                    ) : null}
+                    <div className="mt-1.5 text-[10px] text-white/50">
+                      {p.category === "gomitas"
+                        ? "Ahogada o picosa"
+                        : (p.toppingsIncludedMax ?? 0) > 0
+                          ? `Hasta ${p.toppingsIncludedMax} toppings`
+                          : "Personalizable"}
+                    </div>
+                    {minPrice != null ? (
+                      <p className="mt-1.5 text-sm font-semibold text-white">Desde {cop(minPrice)}</p>
+                    ) : null}
+                    <p className="mt-2 text-[10px] text-white/40">Toca para volver</p>
                   </div>
-                  {minPrice != null ? (
-                    <p className="mt-1.5 text-sm font-semibold text-white">Desde {cop(minPrice)}</p>
-                  ) : null}
-                  <p className="mt-2 text-[10px] text-white/40">Toca para volver</p>
                 </div>
               </div>
             </div>

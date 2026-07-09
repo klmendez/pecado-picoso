@@ -7,6 +7,7 @@ import { WhatsAppNotificationService } from '../services/whatsappNotificationSer
 import { useOrderMessage } from '../hooks/useOrderMessage';
 import type { OrderItem, PaymentMethod, Service } from '../lib/whatsapp';
 import type { CustomerLocation } from '../types/order';
+import type { AppliedPromotion } from '../types/promotion';
 import type { Barrio } from '../data/barrios';
 import { cop } from '../lib/format';
 
@@ -27,6 +28,8 @@ interface CartDrawerProps {
   comments: string;
   initialLocation?: CustomerLocation | null;
   onClearCart: () => void;
+  descuentoTotal?: number;
+  appliedPromotions?: AppliedPromotion[];
 }
 
 export default function CartDrawer({
@@ -45,7 +48,9 @@ export default function CartDrawer({
   paymentMethod,
   comments,
   initialLocation = null,
-  onClearCart
+  onClearCart,
+  descuentoTotal = 0,
+  appliedPromotions = [],
 }: CartDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -188,7 +193,11 @@ export default function CartDrawer({
         },
         formaPago: paymentMethod,
         servicio: service,
-        estado: 'no_pagado' as const
+        estado: 'no_pagado' as const,
+        ...(appliedPromotions.length > 0 ? {
+          promociones: appliedPromotions,
+          descuentoTotal,
+        } : {})
       };
 
       const orderId = await OrderService.createOrder(orderData);
