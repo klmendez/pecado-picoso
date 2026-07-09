@@ -2,9 +2,9 @@ import {
   collection,
   doc,
   getDoc,
-  setDoc,
   getDocs,
   query,
+  runTransaction,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -64,68 +64,75 @@ export class ClientService {
       if (!cleanPhone) return;
 
       const docRef = doc(db, CLIENTS_COLLECTION, cleanPhone);
-      const docSnap = await getDoc(docRef);
       const now = Timestamp.now();
 
-      if (docSnap.exists()) {
-        // Cliente existente: actualizar
-        const existing = docSnap.data() as FirestoreClient;
-        const direcciones = [...(existing.direcciones || [])];
+      // Transacción atómica: evita que dos pedidos casi simultáneos del mismo
+      // teléfono se pisen entre sí (uno leía el estado viejo y sobreescribía
+      // lo que el otro acababa de guardar).
+      await runTransaction(db, async (transaction) => {
+        const docSnap = await transaction.get(docRef);
 
-        // Agregar dirección solo si no existe (evitar duplicados)
-        if (data.direccion && data.direccion.trim()) {
-          const existingAddr = direcciones.find(
-            d => d.direccion.toLowerCase().trim() === data.direccion!.toLowerCase().trim()
-          );
-          if (existingAddr) {
-            // Si ya existe, solo actualizar lastUsed
-            existingAddr.lastUsed = now;
-            if (data.barrio) existingAddr.barrio = data.barrio;
-            if (data.referencia) existingAddr.referencia = data.referencia;
-          } else {
-            // Si no existe, agregar nueva dirección
-            direcciones.push({
-              direccion: data.direccion.trim(),
-              barrio: data.barrio,
-              referencia: data.referencia,
-              lastUsed: now
-            });
+        if (docSnap.exists()) {
+          // Cliente existente: actualizar
+          const existing = docSnap.data() as FirestoreClient;
+          const direcciones = [...(existing.direcciones || [])];
+
+          // Agregar dirección solo si no existe (evitar duplicados)
+          if (data.direccion && data.direccion.trim()) {
+            const existingAddr = direcciones.find(
+              d => d.direccion.toLowerCase().trim() === data.direccion!.toLowerCase().trim()
+            );
+            if (existingAddr) {
+              // Si ya existe, solo actualizar lastUsed
+              existingAddr.lastUsed = now;
+              if (data.barrio) existingAddr.barrio = data.barrio;
+              if (data.referencia) existingAddr.referencia = data.referencia;
+            } else {
+              // Si no existe, agregar nueva dirección
+              const newAddr: ClientAddress = {
+                direccion: data.direccion.trim(),
+                lastUsed: now
+              };
+              if (data.barrio) newAddr.barrio = data.barrio;
+              if (data.referencia) newAddr.referencia = data.referencia;
+              direcciones.push(newAddr);
+            }
           }
-        }
 
-        await setDoc(docRef, {
-          ...existing,
-          nombres: data.nombres || existing.nombres,
-          direcciones,
-          totalPedidos: (existing.totalPedidos || 0) + 1,
-          totalGastado: (existing.totalGastado || 0) + data.totalPedido,
-          ultimoPedido: now,
-          updatedAt: now
-        });
-      } else {
-        // Cliente nuevo: crear
-        const direcciones: ClientAddress[] = [];
-        if (data.direccion && data.direccion.trim()) {
-          const newAddr: ClientAddress = {
-            direccion: data.direccion.trim(),
-            lastUsed: now
-          };
-          if (data.barrio) newAddr.barrio = data.barrio;
-          if (data.referencia) newAddr.referencia = data.referencia;
-          direcciones.push(newAddr);
-        }
+          transaction.set(docRef, {
+            ...existing,
+            nombres: data.nombres || existing.nombres,
+            direcciones,
+            totalPedidos: (existing.totalPedidos || 0) + 1,
+            totalGastado: (existing.totalGastado || 0) + data.totalPedido,
+            ultimoPedido: now,
+            updatedAt: now
+          });
+        } else {
+          // Cliente nuevo: crear
+          const direcciones: ClientAddress[] = [];
+          if (data.direccion && data.direccion.trim()) {
+            const newAddr: ClientAddress = {
+              direccion: data.direccion.trim(),
+              lastUsed: now
+            };
+            if (data.barrio) newAddr.barrio = data.barrio;
+            if (data.referencia) newAddr.referencia = data.referencia;
+            direcciones.push(newAddr);
+          }
 
-        await setDoc(docRef, {
-          celular: cleanPhone,
-          nombres: data.nombres,
-          direcciones,
-          totalPedidos: 1,
-          totalGastado: data.totalPedido,
-          ultimoPedido: now,
-          createdAt: now,
-          updatedAt: now
-        });
-      }
+          transaction.set(docRef, {
+            celular: cleanPhone,
+            nombres: data.nombres,
+            direcciones,
+            totalPedidos: 1,
+            totalGastado: data.totalPedido,
+            ultimoPedido: now,
+            createdAt: now,
+            updatedAt: now
+          });
+        }
+      });
     } catch (error) {
       console.error('Error upserting client:', error);
     }

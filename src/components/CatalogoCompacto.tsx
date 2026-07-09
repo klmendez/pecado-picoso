@@ -158,7 +158,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onRemoveLast(p.id); }}
-                              className="flex h-7 w-7 items-center justify-center border border-white/50 text-sm text-white active:bg-white/20"
+                              className="flex h-9 w-9 items-center justify-center border border-white/50 text-sm text-white active:bg-white/20"
                             >
                               −
                             </button>
@@ -166,7 +166,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onAdd(p); }}
-                              className="flex h-7 w-7 items-center justify-center border border-white bg-white text-sm text-rojo-dark active:bg-white/80"
+                              className="flex h-9 w-9 items-center justify-center border border-white bg-white text-sm text-rojo-dark active:bg-white/80"
                             >
                               +
                             </button>

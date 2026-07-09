@@ -112,9 +112,9 @@ export default function AdminDashboard() {
         tipo: promoForm.tipo,
         valor: Number(promoForm.valor),
         productosIds: promoForm.productosIds ? promoForm.productosIds.split(',').map(s => s.trim()).filter(Boolean) : [],
-        cantidadMinima: promoForm.cantidadMinima ? Number(promoForm.cantidadMinima) : undefined,
         activa: promoForm.activa,
       };
+      if (promoForm.cantidadMinima) data.cantidadMinima = Number(promoForm.cantidadMinima);
       if (promoForm.fechaInicio) data.fechaInicio = Timestamp.fromDate(new Date(promoForm.fechaInicio));
       if (promoForm.fechaFin) data.fechaFin = Timestamp.fromDate(new Date(promoForm.fechaFin));
 
@@ -1264,12 +1264,12 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: '#666' }}>Descripción</label>
-                  <input
-                    type="text"
+                  <textarea
                     value={prodForm.description}
                     onChange={(e) => setProdForm({ ...prodForm, description: e.target.value })}
-                    placeholder="Descripción breve"
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #e0e0e0', borderRadius: '4px', fontSize: '0.875rem', outline: 'none' }}
+                    placeholder="Descripción / ingredientes del producto"
+                    rows={4}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #e0e0e0', borderRadius: '4px', fontSize: '0.875rem', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
                     onFocus={(e) => e.currentTarget.style.borderColor = '#999'}
                     onBlur={(e) => e.currentTarget.style.borderColor = '#e0e0e0'}
                   />

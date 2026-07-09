@@ -201,6 +201,14 @@ export default function Navbar() {
                     </NavLink>
                   ))}
 
+                  <Link
+                    to="/armar"
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-2 bg-rojo text-white text-center font-bold py-3 flex items-center justify-center gap-2"
+                  >
+                    Pedir ahora
+                  </Link>
+
                   <a
                     href={`https://wa.me/57${WHATSAPP_PHONE}`}
                     target="_blank"

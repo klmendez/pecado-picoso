@@ -161,7 +161,7 @@ export default function CustomerInfoSection({
 
   const inputClass = (errored: boolean) =>
     [
-      "mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none transition",
+      "mt-1.5 w-full rounded-lg border bg-white px-3 py-2.5 text-base sm:text-sm outline-none transition",
       errored
         ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
         : "border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-200",
@@ -402,7 +402,7 @@ export default function CustomerInfoSection({
                   value={barrioQuery}
                   onChange={(e) => setBarrioQuery(e.target.value)}
                   className={[
-                    "w-full rounded-lg border bg-white pl-9 pr-3 py-2.5 text-sm text-black outline-none transition",
+                    "w-full rounded-lg border bg-white pl-9 pr-3 py-2.5 text-base sm:text-sm text-black outline-none transition",
                     showErrors && errors.barrio
                       ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
                       : "border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-200",
@@ -513,7 +513,7 @@ export default function CustomerInfoSection({
                 id="customer-reference"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                 placeholder="Portón negro, edificio azul..."
               />
             </div>
@@ -654,7 +654,7 @@ export default function CustomerInfoSection({
             id="comments"
             value={comments}
             onChange={(e) => setComments(e.target.value)}
-            className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200 resize-none"
+            className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200 resize-none"
             rows={3}
             placeholder="Instrucciones especiales, alergias, etc."
             aria-label="Comentarios adicionales (opcional)"

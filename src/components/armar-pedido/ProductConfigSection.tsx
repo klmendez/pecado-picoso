@@ -274,7 +274,7 @@ export default function ProductConfigSection({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        className="h-7 w-7 border border-gray-200 text-sm transition hover:border-gray-400"
+                        className="h-9 w-9 sm:h-7 sm:w-7 border border-gray-200 text-sm transition hover:border-gray-400 active:bg-gray-100"
                         onClick={() => removeItem(it.id)}
                       >
                         −
@@ -282,7 +282,7 @@ export default function ProductConfigSection({
                       <div className="w-7 text-center text-[10px] font-medium text-gray-400">x1</div>
                       <button
                         type="button"
-                        className="h-7 w-7 border border-gray-200 text-sm transition hover:border-gray-400"
+                        className="h-9 w-9 sm:h-7 sm:w-7 border border-gray-200 text-sm transition hover:border-gray-400 active:bg-gray-100"
                         onClick={() => { focusProduct(); duplicateItem(it.id); }}
                       >
                         +
@@ -368,7 +368,7 @@ export default function ProductConfigSection({
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
-                                    className="h-6 w-6 border border-gray-200 text-xs transition hover:border-gray-400"
+                                    className="h-8 w-8 sm:h-6 sm:w-6 border border-gray-200 text-xs transition hover:border-gray-400 active:bg-gray-100"
                                     onClick={() => {
                                       focusProduct();
                                       const nextQty = Math.max(0, qty - 1);
@@ -381,7 +381,7 @@ export default function ProductConfigSection({
                                   <div className="w-5 text-center text-xs font-medium">{qty}</div>
                                   <button
                                     type="button"
-                                    className="h-6 w-6 border border-gray-200 text-xs transition hover:border-gray-400"
+                                    className="h-8 w-8 sm:h-6 sm:w-6 border border-gray-200 text-xs transition hover:border-gray-400 active:bg-gray-100"
                                     onClick={() => {
                                       focusProduct();
                                       const nextQty = qty + 1;

@@ -184,7 +184,7 @@ export default function CartDrawer({
           nombres: name.trim(),
           celular: phone.trim(),
           direccion: service === 'domicilio' ? address.trim() : '',
-          barrio: service === 'domicilio' && barrio ? barrio.name : undefined,
+          ...(service === 'domicilio' && barrio ? { barrio: barrio.name } : {}),
           ...(currentLocation ? {
             coordenadas: currentLocation,
             mapsLink: LocationService.generateMapsLink(currentLocation),

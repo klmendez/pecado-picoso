@@ -155,7 +155,7 @@ export default function Catalogo({
               return (
                 <div key={p.id} className="border-t border-gray-200 pt-5">
                   {/* Contenedor relativo para el drawer */}
-                  <div className="relative">
+                  <div className={["relative", expanded ? "lg:min-h-[300px]" : ""].join(" ")}>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -218,6 +218,7 @@ export default function Catalogo({
                           "border-l border-gray-200",
                           "bg-white/95 backdrop-blur-sm",
                           "px-5 py-4 rounded-r-xl",
+                          "overflow-y-auto",
                           "transition-all duration-300 ease-out",
                           expanded
                             ? "opacity-100 translate-x-0 pointer-events-auto"
@@ -264,7 +265,7 @@ export default function Catalogo({
                       id={`product-details-${p.id}`}
                       className={[
                         "lg:hidden overflow-hidden transition-all duration-300 ease-out",
-                        expanded ? "max-h-[520px] opacity-100 mt-4" : "max-h-0 opacity-0 mt-0",
+                        expanded ? "max-h-[1200px] opacity-100 mt-4" : "max-h-0 opacity-0 mt-0",
                       ].join(" ")}
                     >
                       <div className="border-t border-gray-200 pt-4">
