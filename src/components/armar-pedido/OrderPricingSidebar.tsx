@@ -141,7 +141,7 @@ export default function OrderPricingSidebar({
             <span>Total</span>
             <div className="text-right">
               {descuentoTotal > 0 && (
-                <div className="text-xs text-gray-400 line-through">{cop(subtotal + delivery)}</div>
+                <div className="text-xs text-gray-400 line-through">{cop(subtotal)}</div>
               )}
               <span>{cop(total)}</span>
             </div>
