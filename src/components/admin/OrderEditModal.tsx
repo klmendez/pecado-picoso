@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
-import { X, Save, Plus, Minus, Trash2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { X, Save, Plus, Minus, Trash2, Pencil } from 'lucide-react';
 import { deleteField } from 'firebase/firestore';
 import { OrderService } from '../../services/orderService';
 import type { PedidoFirestore, OrderStatus, PaymentDetail } from '../../types/order';
-import type { PaymentMethod, Service } from '../../lib/whatsapp';
+import type { OrderItem, PaymentMethod, Service } from '../../lib/whatsapp';
 import { cop } from '../../lib/format';
 import { BARRIOS } from '../../data/barrios';
 import type { Barrio } from '../../data/barrios';
+import { EXTRAS } from '../../data/extras';
+import { getBasePrice, extrasTotal, deliveryCost } from '../../lib/pricing';
+import { getAvailableSizes, maxToppingsFor, labelSize, toppingsNames, extrasLine } from '../armar-pedido/utils';
+import Toppings from '../Toppings';
+import Referencias from '../Referencias';
 
 interface OrderEditModalProps {
   order: PedidoFirestore & { id: string };
@@ -34,6 +39,16 @@ const SERVICE_OPTIONS: { value: Service; label: string }[] = [
   { value: 'local', label: 'En el local' }
 ];
 
+function lineTotal(item: OrderItem): number {
+  const baseUnit = getBasePrice(
+    item.product,
+    item.product.category === 'gomitas' ? item.version : null,
+    item.size,
+  );
+  const extrasUnit = extrasTotal(item.extrasQty ?? {}, EXTRAS);
+  return (baseUnit + extrasUnit) * item.qty;
+}
+
 export default function OrderEditModal({ order, onClose, onSave }: OrderEditModalProps) {
   const [editedOrder, setEditedOrder] = useState({
     cliente: {
@@ -47,15 +62,13 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
     formaPago: order.formaPago,
     servicio: order.servicio,
     estado: order.estado,
-    notaAdmin: order.notaAdmin || '',
-    subtotal: order.subtotal,
-    delivery: order.delivery,
-    total: order.total
+    notaAdmin: order.notaAdmin || ''
   });
 
   const [selectedBarrio, setSelectedBarrio] = useState<Barrio | null>(
     BARRIOS.find(b => b.name === order.cliente.barrio) || null
   );
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [usarPagosMixtos, setUsarPagosMixtos] = useState(!!order.detallesPago);
@@ -63,27 +76,30 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
     order.detallesPago || [{ metodo: 'Efectivo', monto: order.total, entregadoDomiciliario: false }]
   );
 
-  // Solo recalcular delivery cuando cambia el tipo de servicio
-  useEffect(() => {
-    setEditedOrder(prev => {
-      let newDelivery = prev.delivery;
+  // El descuento original del pedido se mantiene fijo; solo se re-cuadra si supera el nuevo total.
+  const descuentoTotal = order.descuentoTotal || 0;
 
-      if (prev.servicio !== 'domicilio') {
-        // Si no es domicilio, envío = 0
-        newDelivery = 0;
-      } else if (order.servicio === 'domicilio') {
-        // Si el pedido original ya era domicilio, mantener el delivery original
-        newDelivery = order.delivery;
-      } else if (selectedBarrio) {
-        // Si cambió de llevar/local a domicilio, usar el barrio seleccionado
-        newDelivery = selectedBarrio.price || 0;
-      }
+  const subtotal = useMemo(
+    () => editedOrder.items.reduce((sum, item) => sum + lineTotal(item), 0),
+    [editedOrder.items]
+  );
 
-      const newTotal = prev.subtotal + newDelivery;
+  const delivery = useMemo(
+    () => deliveryCost(editedOrder.servicio, editedOrder.servicio === 'domicilio' ? selectedBarrio : null),
+    [editedOrder.servicio, selectedBarrio]
+  );
 
-      return { ...prev, delivery: newDelivery, total: newTotal };
-    });
-  }, [editedOrder.servicio, selectedBarrio, order.servicio, order.delivery]);
+  const total = useMemo(
+    () => Math.max(0, subtotal + delivery - descuentoTotal),
+    [subtotal, delivery, descuentoTotal]
+  );
+
+  const updateItemField = (itemId: string, patch: Partial<OrderItem>) => {
+    setEditedOrder(prev => ({
+      ...prev,
+      items: prev.items.map(item => (item.id === itemId ? { ...item, ...patch } : item))
+    }));
+  };
 
   const handleSave = async () => {
     try {
@@ -100,6 +116,9 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
       if (editedOrder.servicio === 'domicilio' && !editedOrder.cliente.direccion.trim()) {
         throw new Error('La dirección es obligatoria para domicilio');
       }
+      if (editedOrder.servicio === 'domicilio' && !editedOrder.cliente.barrio.trim()) {
+        throw new Error('El barrio es obligatorio para domicilio');
+      }
       if (editedOrder.items.length === 0) {
         throw new Error('Debe haber al menos un producto');
       }
@@ -111,9 +130,9 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
         servicio: editedOrder.servicio,
         estado: editedOrder.estado,
         notaAdmin: editedOrder.notaAdmin,
-        subtotal: editedOrder.subtotal,
-        delivery: editedOrder.delivery,
-        total: editedOrder.total
+        subtotal,
+        delivery,
+        total
       };
       if (usarPagosMixtos) {
         updateData.detallesPago = detallesPago;
@@ -138,13 +157,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
       removeItem(itemId);
       return;
     }
-
-    setEditedOrder(prev => ({
-      ...prev,
-      items: prev.items.map(item => 
-        item.id === itemId ? { ...item, qty: newQty } : item
-      )
-    }));
+    updateItemField(itemId, { qty: newQty });
   };
 
   const removeItem = (itemId: string) => {
@@ -152,12 +165,13 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
       ...prev,
       items: prev.items.filter(item => item.id !== itemId)
     }));
+    if (expandedItemId === itemId) setExpandedItemId(null);
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      
+
       <div className="absolute right-0 top-0 h-full w-full max-w-3xl bg-white shadow-xl">
         <div className="flex h-full flex-col">
           {/* Header */}
@@ -187,7 +201,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               {/* Estado y configuración básica */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Estado y Configuración</h3>
-                
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Estado</label>
@@ -232,7 +246,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                         <span className="text-sm text-gray-700">Usar pagos mixtos</span>
                       </label>
                     </div>
-                    
+
                     {!usarPagosMixtos ? (
                       <select
                         value={editedOrder.formaPago}
@@ -309,7 +323,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                           <Plus size={14} /> Agregar método de pago
                         </button>
                         <div className="text-xs text-gray-500 mt-2">
-                          Total pagos: {cop(detallesPago.reduce((sum, p) => sum + p.monto, 0))} / Total pedido: {cop(editedOrder.total)}
+                          Total pagos: {cop(detallesPago.reduce((sum, p) => sum + p.monto, 0))} / Total pedido: {cop(total)}
                         </div>
                       </div>
                     )}
@@ -320,7 +334,7 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               {/* Información del cliente */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Información del Cliente</h3>
-                
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Nombre</label>
@@ -364,36 +378,28 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-500">Barrio</label>
-                        {editedOrder.cliente.barrio ? (
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="flex-1 border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-black">
-                              {editedOrder.cliente.barrio} — Envío: {cop(order.delivery)}
-                            </span>
-                          </div>
-                        ) : (
-                          <select
-                            value={selectedBarrio?.id || ''}
-                            onChange={(e) => {
-                              const barrio = BARRIOS.find(b => b.id === e.target.value) || null;
-                              setSelectedBarrio(barrio);
-                              if (barrio) {
-                                setEditedOrder(prev => ({
-                                  ...prev,
-                                  cliente: { ...prev.cliente, barrio: barrio.name }
-                                }));
-                              }
-                            }}
-                            className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
-                          >
-                            <option value="">Seleccionar barrio</option>
-                            {BARRIOS.map(barrio => (
-                              <option key={barrio.id} value={barrio.id}>
-                                {barrio.name} - {barrio.price ? cop(barrio.price) : 'Por confirmar'}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        <label className="block text-sm font-medium text-gray-500">
+                          Barrio (envío: {cop(delivery)})
+                        </label>
+                        <select
+                          value={selectedBarrio?.id || ''}
+                          onChange={(e) => {
+                            const barrio = BARRIOS.find(b => b.id === e.target.value) || null;
+                            setSelectedBarrio(barrio);
+                            setEditedOrder(prev => ({
+                              ...prev,
+                              cliente: { ...prev.cliente, barrio: barrio?.name || '' }
+                            }));
+                          }}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
+                        >
+                          <option value="">Seleccionar barrio</option>
+                          {BARRIOS.map(barrio => (
+                            <option key={barrio.id} value={barrio.id}>
+                              {barrio.name} - {barrio.price ? cop(barrio.price) : 'Por confirmar'}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </>
                   )}
@@ -403,48 +409,212 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               {/* Productos */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Productos ({editedOrder.items.length})</h3>
-                
+
                 <div className="space-y-3">
-                  {editedOrder.items.map((item, index) => (
-                    <div key={item.id || index} className="border-b border-gray-100 py-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-black">{item.product.name}</h4>
-                          <div className="text-sm text-gray-500">
-                            {item.version && `${item.version === 'ahogada' ? 'Ahogada' : 'Picosa'} • `}
-                            {item.size && `${item.size === 'pequeno' ? 'Pequeño' : item.size === 'mediano' ? 'Mediano' : 'Grande'} • `}
-                            {item.toppingIds.length > 0 && `${item.toppingIds.length} toppings`}
+                  {editedOrder.items.map((item, index) => {
+                    const p = item.product;
+                    const isGomitas = p.category === 'gomitas';
+                    const canHaveToppings = p.category === 'gomitas' || p.category === 'frutafresh';
+                    const sizes = getAvailableSizes(p);
+                    const maxT = maxToppingsFor(p);
+                    const showToppings = canHaveToppings && maxT > 0;
+                    const extrasQty = item.extrasQty ?? {};
+                    const extraSelections = item.extraSelections ?? {};
+                    const isExpanded = expandedItemId === item.id;
+                    const tops = item.toppingIds.length ? toppingsNames(item.toppingIds) : [];
+                    const ex = extrasLine(extrasQty);
+
+                    return (
+                      <div key={item.id || index} className="border border-gray-200 rounded-lg">
+                        <div className="flex items-center justify-between p-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-black">{p.name}</h4>
+                            <div className="text-sm text-gray-500">
+                              {item.version && `${item.version === 'ahogada' ? 'Ahogada' : 'Picosa'} • `}
+                              {item.size && `${labelSize(item.size)} • `}
+                              {tops.length ? `Toppings: ${tops.join(', ')}` : null}
+                              {tops.length && ex.length ? ' • ' : null}
+                              {ex.length ? `Extras: ${ex.join(', ')}` : null}
+                            </div>
+                            <div className="mt-1 text-sm font-semibold text-black">{cop(lineTotal(item))}</div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                              className={[
+                                "rounded p-1.5 hover:bg-gray-100",
+                                isExpanded ? "text-blue-600 bg-blue-50" : "text-gray-500",
+                              ].join(" ")}
+                              title="Editar toppings, extras y tamaño"
+                            >
+                              <Pencil size={16} />
+                            </button>
+
+                            <button
+                              onClick={() => updateItemQuantity(item.id, item.qty - 1)}
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
+                            >
+                              <Minus size={16} />
+                            </button>
+
+                            <span className="w-8 text-center text-black">{item.qty}</span>
+
+                            <button
+                              onClick={() => updateItemQuantity(item.id, item.qty + 1)}
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
+                            >
+                              <Plus size={16} />
+                            </button>
+
+                            <button
+                              onClick={() => removeItem(item.id)}
+                              className="ml-2 rounded p-1 text-red-600 hover:bg-red-100"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateItemQuantity(item.id, item.qty - 1)}
-                            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
-                          >
-                            <Minus size={16} />
-                          </button>
-                          
-                          <span className="w-8 text-center text-black">{item.qty}</span>
-                          
-                          <button
-                            onClick={() => updateItemQuantity(item.id, item.qty + 1)}
-                            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
-                          >
-                            <Plus size={16} />
-                          </button>
-                          
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="ml-2 rounded p-1 text-red-600 hover:bg-red-100"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t border-gray-100 p-4 space-y-4 bg-gray-50">
+                            <div>
+                              <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Tamaño</div>
+                              {sizes.length ? (
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {sizes.map((s) => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => updateItemField(item.id, { size: s })}
+                                      className={[
+                                        "border px-3 py-1.5 text-xs font-medium transition rounded",
+                                        item.size === s
+                                          ? "border-rojo bg-rojo text-white"
+                                          : "border-gray-300 bg-white text-gray-600 hover:border-gray-400",
+                                      ].join(" ")}
+                                    >
+                                      {labelSize(s)}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-xs text-gray-400">No aplica.</div>
+                              )}
+                            </div>
+
+                            {isGomitas && (
+                              <Referencias
+                                value={item.version ?? null}
+                                onChange={(v) => updateItemField(item.id, { version: v })}
+                              />
+                            )}
+
+                            {showToppings && (
+                              <Toppings
+                                value={item.toppingIds}
+                                onChange={(next) => updateItemField(item.id, { toppingIds: next })}
+                                max={maxT}
+                                min={isGomitas && maxT > 0 ? 1 : 0}
+                                small
+                                title="Toppings"
+                                subtitle={isGomitas ? "Selecciona (mínimo 1)" : `Opcional (hasta ${maxT})`}
+                              />
+                            )}
+
+                            <div>
+                              <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Extras</div>
+                              <div className="mt-2 space-y-2">
+                                {EXTRAS.map((extra) => {
+                                  const qty = extrasQty[extra.id] ?? 0;
+                                  const currentSelections = extraSelections[extra.id] ?? [];
+
+                                  const applyExtrasPatch = (nextQty: number, nextSelectionIds: string[]) => {
+                                    const nextExtrasQty = { ...extrasQty, [extra.id]: nextQty };
+                                    const nextExtraSelections = { ...extraSelections };
+
+                                    if (nextSelectionIds.length) nextExtraSelections[extra.id] = nextSelectionIds;
+                                    else delete nextExtraSelections[extra.id];
+
+                                    updateItemField(item.id, {
+                                      extrasQty: nextExtrasQty,
+                                      extraSelections: nextExtraSelections,
+                                    });
+                                  };
+
+                                  return (
+                                    <div key={extra.id} className="py-1.5">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <span className="text-xs font-medium text-gray-700">{extra.name}</span>
+                                          <span className="ml-1.5 text-[10px] text-gray-400">{cop(extra.price)}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            className="h-7 w-7 border border-gray-300 bg-white rounded text-xs transition hover:border-gray-400"
+                                            onClick={() => {
+                                              const nextQty = Math.max(0, qty - 1);
+                                              const trimmed = currentSelections.slice(0, nextQty);
+                                              applyExtrasPatch(nextQty, trimmed);
+                                            }}
+                                          >
+                                            −
+                                          </button>
+                                          <div className="w-5 text-center text-xs font-medium">{qty}</div>
+                                          <button
+                                            type="button"
+                                            className="h-7 w-7 border border-gray-300 bg-white rounded text-xs transition hover:border-gray-400"
+                                            onClick={() => {
+                                              const nextQty = qty + 1;
+                                              const trimmed = currentSelections.slice(0, nextQty);
+                                              applyExtrasPatch(nextQty, trimmed);
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {extra.id === 'gomitas' && qty > 0 && (
+                                        <div className="mt-2">
+                                          <Toppings
+                                            value={currentSelections}
+                                            onChange={(next) => {
+                                              const trimmed = next.slice(0, qty);
+                                              applyExtrasPatch(qty, trimmed);
+                                            }}
+                                            max={qty}
+                                            min={qty}
+                                            small
+                                            title="Gomitas extra"
+                                            subtitle={`Selecciona ${qty} ${qty === 1 ? "opción" : "opciones"}`}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedItemId(null)}
+                                className="border border-gray-300 bg-white px-4 py-1.5 text-xs font-medium rounded text-gray-600 hover:border-gray-400"
+                              >
+                                Cerrar
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
-                  
+                    );
+                  })}
+
                   {editedOrder.items.length === 0 && (
                     <div className="border border-dashed border-gray-300 p-6 text-center text-gray-500">
                       No hay productos en este pedido
@@ -456,19 +626,25 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
               {/* Totales */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-4 text-lg font-semibold text-black">Totales</h3>
-                
+
                 <div className="space-y-2">
                   <div className="flex justify-between text-gray-500">
                     <span>Subtotal:</span>
-                    <span>{cop(editedOrder.subtotal)}</span>
+                    <span>{cop(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
                     <span>Envío:</span>
-                    <span>{cop(editedOrder.delivery)}</span>
+                    <span>{cop(delivery)}</span>
                   </div>
+                  {descuentoTotal > 0 && (
+                    <div className="flex justify-between text-rojo">
+                      <span>Descuento:</span>
+                      <span>-{cop(descuentoTotal)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-semibold text-black">
                     <span>Total:</span>
-                    <span>{cop(editedOrder.total)}</span>
+                    <span>{cop(total)}</span>
                   </div>
                 </div>
               </div>

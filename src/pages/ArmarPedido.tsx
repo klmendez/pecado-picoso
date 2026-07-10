@@ -22,6 +22,7 @@ import { useBarrioSelection } from "../hooks/useBarrioSelection";
 import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
 import { useStoreProducts } from "../hooks/useStoreProducts";
 import { usePromotions } from "../hooks/usePromotions";
+import { toBirthdayKey } from "../lib/birthday";
 
 const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
 type StepId = (typeof STEP_SEQUENCE)[number];
@@ -41,6 +42,8 @@ export default function ArmarPedido() {
   const [category, setCategory] = useState<CategoryTabValue>(initialCategory);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [email, setEmail] = useState("");
   const [service, setService] = useState<Service>("domicilio");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
@@ -63,7 +66,7 @@ export default function ArmarPedido() {
   const { promotions } = usePromotions();
 
   const { pricedItems, subtotal, delivery, total, descuentoTotal, appliedPromotions, canSend, sendDisabledHint, validation } =
-    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions });
+    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions, birthdayKey: toBirthdayKey(birthday) });
 
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -439,6 +442,10 @@ export default function ArmarPedido() {
         setName={setName}
         phone={phone}
         setPhone={setPhone}
+        birthday={birthday}
+        setBirthday={setBirthday}
+        email={email}
+        setEmail={setEmail}
         service={service}
         setService={setService}
         barrio={barrio}
@@ -670,6 +677,8 @@ export default function ArmarPedido() {
         appliedPromotions={appliedPromotions}
         name={name}
         phone={phone}
+        birthday={birthday}
+        email={email}
         service={service}
         barrio={barrio}
         address={address}

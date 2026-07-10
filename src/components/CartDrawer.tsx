@@ -10,6 +10,7 @@ import type { CustomerLocation } from '../types/order';
 import type { AppliedPromotion } from '../types/promotion';
 import type { Barrio } from '../data/barrios';
 import { cop } from '../lib/format';
+import { toBirthdayKey } from '../lib/birthday';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ interface CartDrawerProps {
   total: number;
   name: string;
   phone: string;
+  birthday?: string;
+  email?: string;
   service: Service;
   barrio: Barrio | null;
   address: string;
@@ -41,6 +44,8 @@ export default function CartDrawer({
   total,
   name,
   phone,
+  birthday = '',
+  email = '',
   service,
   barrio,
   address,
@@ -75,7 +80,9 @@ export default function CartDrawer({
     subtotal,
     delivery,
     total,
-    locationLink
+    locationLink,
+    descuentoTotal,
+    appliedPromotions
   });
 
   useEffect(() => {
@@ -173,7 +180,8 @@ export default function CartDrawer({
 
     try {
       const numeroOrden = OrderService.generateOrderNumber();
-      
+      const birthdayKey = toBirthdayKey(birthday);
+
       const orderData = {
         numeroOrden,
         items,
@@ -185,6 +193,8 @@ export default function CartDrawer({
           celular: phone.trim(),
           direccion: service === 'domicilio' ? address.trim() : '',
           ...(service === 'domicilio' && barrio ? { barrio: barrio.name } : {}),
+          ...(birthdayKey ? { fechaNacimiento: birthdayKey } : {}),
+          ...(email.trim() ? { correo: email.trim() } : {}),
           ...(currentLocation ? {
             coordenadas: currentLocation,
             mapsLink: LocationService.generateMapsLink(currentLocation),
@@ -227,7 +237,13 @@ export default function CartDrawer({
         if (reference?.trim()) {
           clientData.referencia = reference.trim();
         }
-        
+        if (birthdayKey) {
+          clientData.fechaNacimiento = birthdayKey;
+        }
+        if (email.trim()) {
+          clientData.correo = email.trim();
+        }
+
         await ClientService.upsertClient(clientData);
         console.log('✅ Cliente guardado/actualizado correctamente');
       } catch (clientError) {
@@ -303,6 +319,12 @@ export default function CartDrawer({
                   <span>Envío</span>
                   <span>{cop(delivery)}</span>
                 </div>
+                {appliedPromotions.map((promo, i) => (
+                  <div key={i} className="flex justify-between text-rojo font-medium">
+                    <span>{promo.nombre}</span>
+                    <span>-{cop(promo.descuento)}</span>
+                  </div>
+                ))}
                 <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-black">
                   <span>Total</span>
                   <span>{cop(total)}</span>

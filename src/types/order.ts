@@ -23,6 +23,8 @@ export interface CustomerInfo {
   coordenadas?: CustomerLocation;
   mapsLink?: string;
   ubicacionTiempoReal?: CustomerLocation[];
+  fechaNacimiento?: string; // formato "MM-DD"
+  correo?: string;
 }
 
 export type OrderStatus = 'no_pagado' | 'pagado' | 'preparando' | 'en_camino' | 'entregado' | 'cancelado';

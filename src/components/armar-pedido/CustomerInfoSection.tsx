@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { User, Phone, MapPin, Truck, Store, CreditCard, Banknote, MessageSquare, Navigation, X, CheckCircle2, Search, ExternalLink, History, Plus } from "lucide-react";
+import { User, Phone, MapPin, Truck, Store, CreditCard, Banknote, MessageSquare, Navigation, X, CheckCircle2, Search, ExternalLink, History, Plus, Cake, Mail } from "lucide-react";
 
 import type { Barrio } from "../../data/barrios";
 import type { PaymentMethod, Service } from "../../lib/whatsapp";
 import { cop } from "../../lib/format";
 import { LocationService } from "../../services/locationService";
 import { ClientService, type ClientAddress } from "../../services/clientService";
+import { isBirthdayToday, toBirthdayKey } from "../../lib/birthday";
 
 export type CustomerInfoField = "name" | "phone" | "barrio" | "address";
 export type CustomerInfoErrors = Record<CustomerInfoField, boolean>;
@@ -24,6 +25,10 @@ type Props = {
   phone: string;
   setName: (value: string) => void;
   setPhone: (value: string) => void;
+  birthday: string;
+  setBirthday: (value: string) => void;
+  email: string;
+  setEmail: (value: string) => void;
   service: Service;
   setService: (value: Service) => void;
   barrio: Barrio | null;
@@ -55,6 +60,10 @@ export default function CustomerInfoSection({
   phone,
   setName,
   setPhone,
+  birthday,
+  setBirthday,
+  email,
+  setEmail,
   service,
   setService,
   barrio,
@@ -105,6 +114,12 @@ export default function CustomerInfoSection({
         setSavedAddresses(client.direcciones || []);
         if (!name.trim() && client.nombres) {
           setName(client.nombres);
+        }
+        if (!birthday && client.fechaNacimiento) {
+          setBirthday(`2000-${client.fechaNacimiento}`);
+        }
+        if (!email.trim() && client.correo) {
+          setEmail(client.correo);
         }
       } else {
         setClientFound(false);
@@ -223,6 +238,38 @@ export default function CustomerInfoSection({
                 Cliente registrado
               </div>
             )}
+          </div>
+
+          <div>
+            <label htmlFor="customer-birthday" className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+              <Cake size={12} className="inline mr-1 -mt-0.5" />Cumpleaños (opcional)
+            </label>
+            <input
+              id="customer-birthday"
+              type="date"
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
+              className={inputClass(false)}
+            />
+            {isBirthdayToday(toBirthdayKey(birthday)) && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-rojo font-medium">
+                🎂 ¡Feliz cumpleaños! Tienes un descuento especial en este pedido.
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="customer-email" className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-[11px]">
+              <Mail size={12} className="inline mr-1 -mt-0.5" />Correo (opcional)
+            </label>
+            <input
+              id="customer-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass(false)}
+              placeholder="tucorreo@ejemplo.com"
+            />
           </div>
         </div>
       </div>

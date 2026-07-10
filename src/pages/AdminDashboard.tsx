@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, Eye, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter
+  Search, Eye, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter, ArrowUp, ArrowDown, Download, UserPlus, X as XIcon
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { OrderService } from '../services/orderService';
@@ -12,10 +12,14 @@ import { PromotionService } from '../services/promotionService';
 import type { PedidoFirestore, OrderFilters, OrderStatus } from '../types/order';
 import type { Promotion, PromotionType } from '../types/promotion';
 import { cop } from '../lib/format';
+import { isBirthdayToday } from '../lib/birthday';
+import { VIP_MIN_PEDIDOS, VIP_MIN_GASTADO, INACTIVE_DAYS_THRESHOLD } from '../data/constants';
+import { buildOrderQuickMessages, buildClientQuickMessages } from '../lib/whatsappTemplates';
 import AdminAuth from '../components/AdminAuth';
 import AdminLayout from '../components/admin/AdminLayout';
 import OrderEditModal from '../components/admin/OrderEditModal';
 import ClientDetailModal from '../components/admin/ClientDetailModal';
+import WhatsAppQuickSend from '../components/admin/WhatsAppQuickSend';
 
 const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
   todos: 'Todos',
@@ -26,6 +30,26 @@ const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
   entregado: 'Entregado',
   cancelado: 'Cancelado'
 };
+
+type ClientSortField = 'nombres' | 'totalPedidos' | 'totalGastado' | 'ultimoPedido';
+
+function SortableClientHeader({ field, label, sortBy, sortDir, onSort }: {
+  field: ClientSortField;
+  label: string;
+  sortBy: ClientSortField;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: ClientSortField) => void;
+}) {
+  const active = sortBy === field;
+  return (
+    <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">
+      <button onClick={() => onSort(field)} className="flex items-center gap-1 hover:text-gray-900">
+        {label}
+        {active && (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+      </button>
+    </th>
+  );
+}
 
 
 
@@ -70,6 +94,14 @@ export default function AdminDashboard() {
   const [clientsLoading, setClientsLoading] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<FirestoreClient | null>(null);
+  const [clientSortBy, setClientSortBy] = useState<'nombres' | 'totalPedidos' | 'totalGastado' | 'ultimoPedido'>('ultimoPedido');
+  const [clientSortDir, setClientSortDir] = useState<'asc' | 'desc'>('desc');
+  const [clientFilter, setClientFilter] = useState<'todos' | 'vip' | 'inactivos'>('todos');
+  const [clientTagFilter, setClientTagFilter] = useState<string>('');
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({ nombres: '', celular: '', fechaNacimiento: '', correo: '' });
+  const [newClientError, setNewClientError] = useState('');
+  const [savingNewClient, setSavingNewClient] = useState(false);
 
 
   // Promociones state
@@ -247,6 +279,96 @@ export default function AdminDashboard() {
       console.error('Error loading clients:', err);
     } finally {
       setClientsLoading(false);
+    }
+  };
+
+  const toggleClientSort = (field: typeof clientSortBy) => {
+    if (clientSortBy === field) {
+      setClientSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setClientSortBy(field);
+      setClientSortDir('desc');
+    }
+  };
+
+  const allClientTags = Array.from(new Set(clients.flatMap(c => c.etiquetas || []))).sort();
+
+  const daysSinceLastPurchase = (client: FirestoreClient) => {
+    const last = client.ultimoPedido?.toDate ? client.ultimoPedido.toDate() : new Date();
+    return Math.floor((new Date().getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const isClientVip = (client: FirestoreClient) =>
+    client.totalPedidos >= VIP_MIN_PEDIDOS || client.totalGastado >= VIP_MIN_GASTADO;
+
+  const isClientInactive = (client: FirestoreClient) => daysSinceLastPurchase(client) >= INACTIVE_DAYS_THRESHOLD;
+
+  const filteredSortedClients = clients
+    .filter(c =>
+      clientSearchTerm === '' ||
+      c.nombres.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+      c.celular.includes(clientSearchTerm.replace(/\D/g, ''))
+    )
+    .filter(c => clientFilter === 'todos' || (clientFilter === 'vip' ? isClientVip(c) : isClientInactive(c)))
+    .filter(c => !clientTagFilter || (c.etiquetas || []).includes(clientTagFilter))
+    .sort((a, b) => {
+      let cmp = 0;
+      if (clientSortBy === 'nombres') cmp = a.nombres.localeCompare(b.nombres);
+      else if (clientSortBy === 'totalPedidos') cmp = a.totalPedidos - b.totalPedidos;
+      else if (clientSortBy === 'totalGastado') cmp = a.totalGastado - b.totalGastado;
+      else {
+        const aTime = a.ultimoPedido?.toMillis ? a.ultimoPedido.toMillis() : 0;
+        const bTime = b.ultimoPedido?.toMillis ? b.ultimoPedido.toMillis() : 0;
+        cmp = aTime - bTime;
+      }
+      return clientSortDir === 'asc' ? cmp : -cmp;
+    });
+
+  const exportClientsCSV = () => {
+    const header = ['Nombre', 'Teléfono', 'Correo', 'Cumpleaños', 'Pedidos', 'Total Gastado', 'Última Compra', 'Etiquetas', 'Nota'];
+    const rows = filteredSortedClients.map(c => [
+      c.nombres,
+      c.celular,
+      c.correo || '',
+      c.fechaNacimiento || '',
+      String(c.totalPedidos),
+      String(c.totalGastado),
+      c.ultimoPedido?.toDate ? c.ultimoPedido.toDate().toLocaleDateString('es-CO') : '',
+      (c.etiquetas || []).join('; '),
+      c.notaAdmin || '',
+    ]);
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map(row => row.map(escape).join(',')).join('\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleAddClient = async () => {
+    setNewClientError('');
+    if (!newClientForm.nombres.trim() || !newClientForm.celular.trim()) {
+      setNewClientError('Nombre y teléfono son obligatorios');
+      return;
+    }
+    setSavingNewClient(true);
+    try {
+      await ClientService.createManualClient({
+        nombres: newClientForm.nombres.trim(),
+        celular: newClientForm.celular.trim(),
+        fechaNacimiento: newClientForm.fechaNacimiento ? newClientForm.fechaNacimiento.slice(5) : undefined,
+        correo: newClientForm.correo.trim() || undefined,
+      });
+      setShowAddClient(false);
+      setNewClientForm({ nombres: '', celular: '', fechaNacimiento: '', correo: '' });
+      await loadClients();
+    } catch (err) {
+      setNewClientError(err instanceof Error ? err.message : 'Error al crear el cliente');
+    } finally {
+      setSavingNewClient(false);
     }
   };
 
@@ -492,12 +614,6 @@ export default function AdminDashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleWhatsApp = (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    const url = `https://api.whatsapp.com/send?phone=57${cleanPhone}&text=${encodeURIComponent('Hola! Te contactamos desde Pecado Picoso sobre tu pedido.')}`;
-    window.open(url, '_blank');
   };
 
   const handleOpenLocation = (order: PedidoFirestore & { id: string }) => {
@@ -754,9 +870,9 @@ export default function AdminDashboard() {
                                   <div className="flex items-center gap-1.5 text-xs text-gray-500">
                                     <Phone size={10} />
                                     <span>{order.cliente.celular}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(order.cliente.celular); }} className="text-green-500 hover:text-green-600" title="WhatsApp">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                    </button>
+                                    <span onClick={(e) => e.stopPropagation()}>
+                                      <WhatsAppQuickSend phone={order.cliente.celular} templates={buildOrderQuickMessages(order)} />
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
                                     <MapPin size={11} className="text-gray-400 shrink-0" />
@@ -789,6 +905,11 @@ export default function AdminDashboard() {
                             <td className="px-4 py-3 align-top">
                               <div className="font-bold text-gray-900">{cop(order.total)}</div>
                               <div className="text-[11px] text-gray-400">{order.formaPago}</div>
+                              {(order.descuentoTotal ?? 0) > 0 && (
+                                <div className="mt-0.5 inline-flex items-center rounded-full bg-rojo-light px-1.5 py-0.5 text-[10px] font-semibold text-rojo">
+                                  -{cop(order.descuentoTotal!)} desc.
+                                </div>
+                              )}
                             </td>
 
                             {/* Estado */}
@@ -842,17 +963,62 @@ export default function AdminDashboard() {
 
         {activeTab === 'clientes' && (
           <>
-            {/* Búsqueda */}
-            <div className="mb-4 flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o teléfono..."
-                  value={clientSearchTerm}
-                  onChange={(e) => setClientSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
-                />
+            {/* Toolbar */}
+            <div className="mb-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex-1 min-w-[200px] relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o teléfono..."
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowAddClient(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                >
+                  <UserPlus size={14} /> Agregar cliente
+                </button>
+                <button
+                  onClick={exportClientsCSV}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  <Download size={14} /> Exportar CSV
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {([
+                  { value: 'todos', label: 'Todos' },
+                  { value: 'vip', label: '⭐ VIP' },
+                  { value: 'inactivos', label: `Inactivos (+${INACTIVE_DAYS_THRESHOLD}d)` },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setClientFilter(opt.value)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      clientFilter === opt.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+
+                {allClientTags.length > 0 && (
+                  <select
+                    value={clientTagFilter}
+                    onChange={(e) => setClientTagFilter(e.target.value)}
+                    className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 outline-none focus:border-gray-400"
+                  >
+                    <option value="">Todas las etiquetas</option>
+                    {allClientTags.map(tag => (
+                      <option key={tag} value={tag}>{tag}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -860,49 +1026,57 @@ export default function AdminDashboard() {
             <div>
               {clientsLoading ? (
                 <div className="p-12 text-center text-gray-500 text-sm">Cargando clientes...</div>
-              ) : clients.length === 0 ? (
-                <div className="p-12 text-center text-gray-400 text-sm">No hay clientes registrados.</div>
+              ) : filteredSortedClients.length === 0 ? (
+                <div className="p-12 text-center text-gray-400 text-sm">No hay clientes que coincidan.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ borderBottom: '1px solid #e0e0e0', background: '#f5f5f5' }}>
-                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Cliente</th>
+                        <SortableClientHeader field="nombres" label="Cliente" sortBy={clientSortBy} sortDir={clientSortDir} onSort={toggleClientSort} />
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Teléfono</th>
-                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Direcciones</th>
-                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Pedidos</th>
-                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Total Gastado</th>
-                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Última Compra</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Etiquetas</th>
+                        <SortableClientHeader field="totalPedidos" label="Pedidos" sortBy={clientSortBy} sortDir={clientSortDir} onSort={toggleClientSort} />
+                        <SortableClientHeader field="totalGastado" label="Total Gastado" sortBy={clientSortBy} sortDir={clientSortDir} onSort={toggleClientSort} />
+                        <SortableClientHeader field="ultimoPedido" label="Última Compra" sortBy={clientSortBy} sortDir={clientSortDir} onSort={toggleClientSort} />
                         <th className="px-4 py-3 text-right font-semibold text-xs text-gray-600 uppercase tracking-wide">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {clients
-                        .filter(c =>
-                          clientSearchTerm === '' ||
-                          c.nombres.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-                          c.celular.includes(clientSearchTerm.replace(/\D/g, ''))
-                        )
-                        .map((client) => {
-                          const lastPurchase = client.ultimoPedido?.toDate ? client.ultimoPedido.toDate() : new Date();
-                          const daysSince = Math.floor((new Date().getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24));
+                      {filteredSortedClients.map((client) => {
+                          const daysSince = daysSinceLastPurchase(client);
                           return (
                             <tr key={client.id} style={{ borderBottom: '1px solid #f0f0f0' }} className="hover:bg-gray-50 transition">
                               <td className="px-4 py-3">
-                                <div className="font-semibold text-gray-900">{client.nombres}</div>
+                                <div className="flex items-center gap-1.5 font-semibold text-gray-900">
+                                  {client.nombres}
+                                  {isBirthdayToday(client.fechaNacimiento) && (
+                                    <span title="Hoy es su cumpleaños">🎂</span>
+                                  )}
+                                  {isClientVip(client) && (
+                                    <span title="Cliente VIP" className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">VIP</span>
+                                  )}
+                                  {isClientInactive(client) && (
+                                    <span title="Inactivo" className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-500">Inactivo</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-1.5 text-gray-700">
                                   <Phone size={12} className="text-gray-400" />
                                   <span>{client.celular}</span>
-                                  <button onClick={() => handleWhatsApp(client.celular)} className="text-green-500 hover:text-green-600 ml-1" title="WhatsApp">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                  </button>
+                                  <WhatsAppQuickSend phone={client.celular} templates={buildClientQuickMessages(client)} className="ml-1" />
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="text-xs text-gray-600">
-                                  {client.direcciones?.length || 0} dirección{(client.direcciones?.length || 0) !== 1 ? 'es' : ''}
+                                <div className="flex flex-wrap gap-1">
+                                  {(client.etiquetas || []).length > 0 ? (
+                                    client.etiquetas!.map(tag => (
+                                      <span key={tag} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">{tag}</span>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-gray-300">—</span>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3">
@@ -938,8 +1112,78 @@ export default function AdminDashboard() {
 
             {/* Contador */}
             <div className="mt-4 text-xs text-gray-400 font-medium">
-              {clients.length} cliente{clients.length !== 1 ? 's' : ''}
+              {filteredSortedClients.length} de {clients.length} cliente{clients.length !== 1 ? 's' : ''}
             </div>
+
+            {/* Agregar cliente */}
+            {showAddClient && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0, 0, 0, 0.5)' }}>
+                <div className="bg-white max-w-md w-full rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between p-5 border-b border-gray-200">
+                    <h3 className="text-lg font-bold text-gray-900">Agregar cliente</h3>
+                    <button onClick={() => setShowAddClient(false)} className="text-gray-400 hover:text-gray-700">
+                      <XIcon size={18} />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    {newClientError && (
+                      <div className="border border-red-300 bg-red-50 p-3 text-sm text-red-600">{newClientError}</div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Nombre *</label>
+                      <input
+                        value={newClientForm.nombres}
+                        onChange={(e) => setNewClientForm(prev => ({ ...prev, nombres: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Teléfono *</label>
+                      <input
+                        value={newClientForm.celular}
+                        onChange={(e) => setNewClientForm(prev => ({ ...prev, celular: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Cumpleaños</label>
+                        <input
+                          type="date"
+                          value={newClientForm.fechaNacimiento}
+                          onChange={(e) => setNewClientForm(prev => ({ ...prev, fechaNacimiento: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Correo</label>
+                        <input
+                          type="email"
+                          value={newClientForm.correo}
+                          onChange={(e) => setNewClientForm(prev => ({ ...prev, correo: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-5 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowAddClient(false)}
+                      className="flex-1 rounded-lg border border-gray-300 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleAddClient}
+                      disabled={savingNewClient}
+                      className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {savingNewClient ? 'Guardando...' : 'Crear cliente'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -948,6 +1192,7 @@ export default function AdminDashboard() {
           <ClientDetailModal
             client={selectedClient}
             onClose={() => setSelectedClient(null)}
+            onChanged={loadClients}
           />
         )}
 

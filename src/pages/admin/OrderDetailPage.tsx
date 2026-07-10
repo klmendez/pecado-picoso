@@ -440,6 +440,22 @@ export default function OrderDetailPage() {
                   <span className="text-gray-500">Envio:</span>
                   <span className="text-black">{cop(order.delivery)}</span>
                 </div>
+
+                {(order.descuentoTotal ?? 0) > 0 && (
+                  <>
+                    {(order.promociones || []).map((promo, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-rojo">
+                        <span>{promo.nombre}:</span>
+                        <span className="font-semibold">-{cop(promo.descuento)}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-rojo font-semibold">
+                      <span>Descuento total:</span>
+                      <span>-{cop(order.descuentoTotal!)}</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex items-center justify-between border-t border-gray-200 pt-3 text-lg font-semibold">
                   <span className="text-black">Total:</span>
                   <span className="text-black">{cop(order.total)}</span>
@@ -502,7 +518,11 @@ export default function OrderDetailPage() {
                   ? `\nDireccion: ${order.cliente.direccion}${order.cliente.barrio ? ` (${order.cliente.barrio})` : ''}`
                   : '';
 
-                const pagoInfo = `\nTotal: ${cop(order.total)} · ${order.formaPago}`;
+                const descuentoInfo = (order.descuentoTotal ?? 0) > 0
+                  ? `\nDescuento: -${cop(order.descuentoTotal!)}`
+                  : '';
+
+                const pagoInfo = `${descuentoInfo}\nTotal: ${cop(order.total)} · ${order.formaPago}`;
 
                 const presets = [
                   {

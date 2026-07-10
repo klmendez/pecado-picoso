@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { PedidoFirestore, OrderFilters, OrderUpdate, CustomerLocation } from '../types/order';
+import { ClientService } from './clientService';
 
 const ORDERS_COLLECTION = 'pedidos';
 
@@ -116,29 +117,38 @@ export class OrderService {
     try {
       const orderRef = doc(db, ORDERS_COLLECTION, orderId);
       const now = Timestamp.now();
-      
+
+      const orderDoc = await getDoc(orderRef);
+      const currentOrder = orderDoc.exists() ? (orderDoc.data() as PedidoFirestore) : null;
+
       // Si se está actualizando el estado, agregar al historial
-      if (updates.estado) {
-        const orderDoc = await getDoc(orderRef);
-        if (orderDoc.exists()) {
-          const currentOrder = orderDoc.data() as PedidoFirestore;
-          const newHistoryEntry = {
-            estado: updates.estado,
-            timestamp: now,
-            nota: updates.notaAdmin || `Estado cambiado a ${updates.estado}`
-          };
-          
-          updates.historialEstado = [
-            ...(currentOrder.historialEstado || []),
-            newHistoryEntry
-          ];
-        }
+      if (updates.estado && currentOrder) {
+        const newHistoryEntry = {
+          estado: updates.estado,
+          timestamp: now,
+          nota: updates.notaAdmin || `Estado cambiado a ${updates.estado}`
+        };
+
+        updates.historialEstado = [
+          ...(currentOrder.historialEstado || []),
+          newHistoryEntry
+        ];
       }
-      
+
       await updateDoc(orderRef, {
         ...updates,
         updatedAt: now
       });
+
+      // Si cambiaron los productos, el total o el cliente, las estadísticas
+      // guardadas en "clientes" (pedidos/gastado) pueden quedar desfasadas.
+      // Se resincronizan a partir del historial real de pedidos.
+      const previousPhone = currentOrder?.cliente?.celular;
+      const nextPhone = updates.cliente?.celular ?? previousPhone;
+      await this.resyncClientStats(previousPhone);
+      if (nextPhone && nextPhone !== previousPhone) {
+        await this.resyncClientStats(nextPhone);
+      }
     } catch (error) {
       console.error('Error updating order:', error);
       throw new Error('Error al actualizar el pedido');
@@ -173,10 +183,35 @@ export class OrderService {
   static async deleteOrder(orderId: string): Promise<void> {
     try {
       const docRef = doc(db, ORDERS_COLLECTION, orderId);
+      const snap = await getDoc(docRef);
+      const phone = snap.exists() ? (snap.data() as PedidoFirestore).cliente?.celular : null;
+
       await deleteDoc(docRef);
+
+      // El registro del cliente guarda pedidos/gastado por separado; hay que
+      // recalcularlos para que no queden contando un pedido que ya no existe.
+      await this.resyncClientStats(phone);
     } catch (error) {
       console.error('Error deleting order:', error);
       throw new Error('Error al eliminar el pedido');
+    }
+  }
+
+  // Obtener todos los pedidos asociados a un teléfono (para sincronizar estadísticas del cliente)
+  static async getOrdersByPhone(phone: string): Promise<(PedidoFirestore & { id: string })[]> {
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone) return [];
+    const all = await this.getOrders();
+    return all.filter(o => o.cliente.celular.replace(/\D/g, '') === cleanPhone);
+  }
+
+  private static async resyncClientStats(phone: string | undefined | null): Promise<void> {
+    if (!phone) return;
+    try {
+      const orders = await this.getOrdersByPhone(phone);
+      await ClientService.syncClientStats(phone, orders);
+    } catch (error) {
+      console.error('Error resincronizando estadísticas del cliente:', error);
     }
   }
 

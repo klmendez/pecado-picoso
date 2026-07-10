@@ -12,3 +12,12 @@ export const BUSINESS_HOURS = {
   weekdays: "Lun - Vie: 2:00 p.m. - 9:00 p.m.",
   weekend: "Sáb - Dom: 12:00 p.m. - 10:00 p.m.",
 };
+
+// % de descuento automático que se aplica cuando la fecha del pedido coincide
+// con el cumpleaños guardado del cliente. Ajusta este número para cambiarlo.
+export const BIRTHDAY_DISCOUNT_PERCENT = 15;
+
+// Umbrales para marcar clientes como VIP o inactivos en el panel de admin.
+export const VIP_MIN_PEDIDOS = 5;
+export const VIP_MIN_GASTADO = 200000;
+export const INACTIVE_DAYS_THRESHOLD = 30;

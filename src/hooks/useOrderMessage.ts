@@ -22,6 +22,8 @@ type Params = {
   total: number;
   destination?: string;
   locationLink?: string;
+  descuentoTotal?: number;
+  appliedPromotions?: { nombre: string; descuento: number }[];
 };
 
 export function useOrderMessage(params: Params) {
@@ -40,6 +42,8 @@ export function useOrderMessage(params: Params) {
     total,
     destination = `57${WHATSAPP_PHONE}`,
     locationLink,
+    descuentoTotal = 0,
+    appliedPromotions = [],
   } = params;
 
   const openWhatsApp = useCallback(() => {
@@ -67,6 +71,8 @@ export function useOrderMessage(params: Params) {
       paymentMethod,
       comments: comments.trim() || undefined,
       locationLink,
+      descuentoTotal,
+      appliedPromotions,
     });
 
     window.open(waLink(destination, message), "_blank");
@@ -85,6 +91,8 @@ export function useOrderMessage(params: Params) {
     total,
     destination,
     locationLink,
+    descuentoTotal,
+    appliedPromotions,
   ]);
 
   return { openWhatsApp };

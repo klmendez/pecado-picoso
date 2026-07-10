@@ -6,6 +6,8 @@ import type { OrderItem, Service } from "../lib/whatsapp";
 import { deliveryCost, extrasTotal, getBasePrice } from "../lib/pricing";
 import { maxToppingsFor } from "../components/armar-pedido/utils";
 import type { Promotion, AppliedPromotion } from "../types/promotion";
+import { BIRTHDAY_DISCOUNT_PERCENT } from "../data/constants";
+import { isBirthdayToday } from "../lib/birthday";
 
 export type ChecklistItem = {
   id: "products" | "config" | "customer" | "delivery" | "total";
@@ -29,6 +31,7 @@ type Params = {
   name: string;
   phone: string;
   promotions?: (Promotion & { id: string })[];
+  birthdayKey?: string | null;
 };
 
 type Result = {
@@ -50,7 +53,7 @@ type Result = {
   sendDisabledHint: string;
 };
 
-export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [] }: Params): Result {
+export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [], birthdayKey = null }: Params): Result {
   const pricedItems = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(
@@ -69,10 +72,25 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
   const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
 
   const { descuentoTotal, appliedPromotions } = useMemo(() => {
-    if (!promotions.length || !pricedItems.length) return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[] };
+    if (!pricedItems.length) return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[] };
 
     const applied: AppliedPromotion[] = [];
     let totalDiscount = 0;
+
+    if (isBirthdayToday(birthdayKey)) {
+      const itemsSubtotal = pricedItems.reduce((s, it) => s + it.line, 0);
+      const discount = Math.round(itemsSubtotal * BIRTHDAY_DISCOUNT_PERCENT / 100);
+      if (discount > 0) {
+        totalDiscount += discount;
+        applied.push({
+          promoId: "birthday",
+          nombre: `🎂 Descuento de cumpleaños (${BIRTHDAY_DISCOUNT_PERCENT}%)`,
+          tipo: "porcentaje",
+          valor: BIRTHDAY_DISCOUNT_PERCENT,
+          descuento: discount,
+        });
+      }
+    }
 
     for (const promo of promotions) {
       if (!promo.activa) continue;
@@ -114,7 +132,7 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
     }
 
     return { descuentoTotal: totalDiscount, appliedPromotions: applied };
-  }, [pricedItems, promotions]);
+  }, [pricedItems, promotions, birthdayKey]);
 
   const total = subtotal + delivery - descuentoTotal;
   const totalConDescuento = total;

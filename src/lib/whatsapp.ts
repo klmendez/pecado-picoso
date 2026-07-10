@@ -159,6 +159,8 @@ export function buildWhatsAppMessage(args: {
   paymentMethod: PaymentMethod;
   comments?: string;
   locationLink?: string;
+  descuentoTotal?: number;
+  appliedPromotions?: { nombre: string; descuento: number }[];
 }) {
   const {
     origin,
@@ -178,6 +180,8 @@ export function buildWhatsAppMessage(args: {
     paymentMethod,
     comments,
     locationLink,
+    descuentoTotal = 0,
+    appliedPromotions = [],
   } = args;
 
   const serviceLabel = formatServiceLabel(service);
@@ -243,10 +247,15 @@ export function buildWhatsAppMessage(args: {
 
   const sendSection = [section("� Enviar"), `Envíanos este mensaje ahora y confirmamos tu pedido 🙌`];
 
+  const discountLines = descuentoTotal > 0
+    ? appliedPromotions.map((p) => `${p.nombre}: -*${cop(p.descuento)}*`)
+    : [];
+
   const totalsSection = [
     section("💰 Totales"),
     `Subtotal: *${cop(subtotal)}*`,
     deliveryLine,
+    ...discountLines,
     `Total: *${cop(total)}*`,
     `${payEmoji} Método de pago: *${paymentMethod}*`,
     `Nequi / Llave: *${NEQUI_PHONE}*`,
