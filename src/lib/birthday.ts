@@ -27,3 +27,16 @@ export function formatBirthdayLabel(birthdayKey: string | null | undefined): str
   if (!month || !day || month < 1 || month > 12) return null;
   return `${day} de ${MONTH_NAMES[month - 1]}`;
 }
+
+export function monthName(monthIndex1to12: number): string {
+  return MONTH_NAMES[monthIndex1to12 - 1] ?? "";
+}
+
+// Días que faltan para el próximo cumpleaños de esta fecha (0 = hoy).
+export function daysUntilNextBirthday(birthdayKey: string, now: Date = new Date()): number {
+  const [month, day] = birthdayKey.split("-").map(Number);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let next = new Date(now.getFullYear(), month - 1, day);
+  if (next < today) next = new Date(now.getFullYear() + 1, month - 1, day);
+  return Math.round((next.getTime() - today.getTime()) / 86400000);
+}

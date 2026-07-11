@@ -15,7 +15,7 @@ import { toBirthdayKey } from '../lib/birthday';
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  items: OrderItem[];
+  items: (OrderItem & { baseLine: number })[];
   subtotal: number;
   delivery: number;
   total: number;
@@ -81,8 +81,7 @@ export default function CartDrawer({
     delivery,
     total,
     locationLink,
-    descuentoTotal,
-    appliedPromotions
+    descuentoTotal
   });
 
   useEffect(() => {
@@ -182,9 +181,17 @@ export default function CartDrawer({
       const numeroOrden = OrderService.generateOrderNumber();
       const birthdayKey = toBirthdayKey(birthday);
 
+      // Se guarda el item "limpio" (sin los campos de precio calculado que
+      // solo se usan para mostrar el resumen), conservando el detalle de
+      // descuentos por producto como una foto del momento de la compra.
+      const itemsForOrder = items.map((it: any) => {
+        const { baseUnit, extrasUnit, unit, line, baseLine, discounts, ...rest } = it;
+        return discounts && discounts.length ? { ...rest, discounts } : rest;
+      });
+
       const orderData = {
         numeroOrden,
-        items,
+        items: itemsForOrder,
         total,
         subtotal,
         delivery,

@@ -19,6 +19,8 @@ export type Service = "llevar" | "domicilio" | "local";
 export type Topping = { id: string; name: string };
 export type Extra = { id: string; name: string };
 
+export type ItemDiscount = { nombre: string; descuento: number };
+
 export type OrderItem = {
   id: string;
   product: Product;
@@ -30,6 +32,10 @@ export type OrderItem = {
   toppingIds: string[]; // aplica a TODO producto con toppingsIncludedMax > 0
   extrasQty: Record<string, number>;
   extraSelections: Record<string, string[]>;
+
+  // Descuentos que le aplicaron a este producto en particular (foto del
+  // momento en que se creó el pedido; no se recalcula si el pedido se edita).
+  discounts?: ItemDiscount[];
 };
 
 function sizeLabel(size: Size | null) {
@@ -52,9 +58,7 @@ export function formatServiceLabel(service: Service) {
 
 export function formatBarrioLine(service: Service, barrio: Barrio | null) {
   if (service !== "domicilio" || !barrio) return undefined;
-  return `📍 *Barrio:* ${barrio.name} ${
-    barrio.price == null ? "(Se confirma)" : `(${cop(barrio.price)})`
-  }`;
+  return `📍 *Barrio:* ${barrio.name}${barrio.price == null ? " (Se confirma)" : ""}`;
 }
 
 export function formatAddressLine(service: Service, address: string, reference: string) {
@@ -84,36 +88,37 @@ export function buildDetailLine(product: Product, version: Version | null, size:
   return parts.join(" · ");
 }
 
-export function formatToppingsNames(toppingIds: string[], toppingsCatalog: Topping[]) {
-  if (!toppingIds.length) return undefined;
+// Nombres de toppings incluidos, uno por línea (para listas con viñetas)
+export function getToppingNamesList(toppingIds: string[], toppingsCatalog: Topping[]): string[] {
   const lookup = new Map(toppingsCatalog.map((t) => [t.id, t.name]));
-  const names = toppingIds.map((id) => lookup.get(id) ?? id);
-  return names.join(", ");
+  return toppingIds.map((id) => lookup.get(id) ?? id);
 }
 
-export function formatExtrasNames(
+export type ExtraDetail = { name: string; qty: number; total: number; selectionNames?: string[] };
+
+// Detalle de adiciones con precio total por línea (precio unitario x cantidad x
+// unidades del producto), para mostrar "• Nombre: $monto". Si el extra es de
+// tipo "gomitas", incluye los sabores elegidos (selectionNames).
+export function getExtrasDetail(
   extrasQty: Record<string, number>,
-  extrasCatalog: Extra[],
-  extraSelections: Record<string, string[]>,
-  toppingsCatalog: Topping[],
-) {
-  const lookup = new Map(extrasCatalog.map((e) => [e.id, e.name]));
+  itemQty: number,
+  extrasCatalog: (Extra & { price: number })[],
+  extraSelections: Record<string, string[]> = {},
+  toppingsCatalog: Topping[] = [],
+): ExtraDetail[] {
   const toppingLookup = new Map(toppingsCatalog.map((t) => [t.id, t.name]));
-  const parts: string[] = [];
-  for (const [id, qty] of Object.entries(extrasQty)) {
-    const q = Number(qty) || 0;
+  const details: ExtraDetail[] = [];
+  for (const extra of extrasCatalog) {
+    const q = Number(extrasQty[extra.id]) || 0;
     if (q <= 0) continue;
-    const selections = extraSelections[id] ?? [];
-    const detail =
-      id === "gomitas" && selections.length
-        ? ` (${selections
-            .slice(0, q)
-            .map((sel) => toppingLookup.get(sel) ?? sel)
-            .join(", ")})`
-        : "";
-    parts.push(`${lookup.get(id) ?? id} x${q}${detail}`);
+    const totalQty = q * itemQty;
+    const selections = extraSelections[extra.id] ?? [];
+    const selectionNames = extra.id === "gomitas" && selections.length
+      ? selections.slice(0, q).map((sel) => toppingLookup.get(sel) ?? sel)
+      : undefined;
+    details.push({ name: extra.name, qty: totalQty, total: extra.price * totalQty, selectionNames });
   }
-  return parts.length ? parts.join(", ") : undefined;
+  return details;
 }
 
 function section(title: string) {
@@ -147,20 +152,19 @@ export function buildWhatsAppMessage(args: {
   address: string;
   reference: string;
 
-  items: OrderItem[];
+  items: (OrderItem & { baseLine: number })[];
 
   subtotal: number;
   delivery: number;
   total: number;
 
   toppingsCatalog: Topping[];
-  extrasCatalog: Extra[];
+  extrasCatalog: (Extra & { price: number })[];
 
   paymentMethod: PaymentMethod;
   comments?: string;
   locationLink?: string;
   descuentoTotal?: number;
-  appliedPromotions?: { nombre: string; descuento: number }[];
 }) {
   const {
     origin,
@@ -181,7 +185,6 @@ export function buildWhatsAppMessage(args: {
     comments,
     locationLink,
     descuentoTotal = 0,
-    appliedPromotions = [],
   } = args;
 
   const serviceLabel = formatServiceLabel(service);
@@ -192,35 +195,47 @@ export function buildWhatsAppMessage(args: {
       ? "⚠️ *El valor del envío se confirma según tu ubicación.*"
       : undefined;
 
-  const productLines = items.flatMap((it, idx) => {
+  const productBlocks = items.map((it, idx) => {
     const detail = buildDetailLine(it.product, it.version, it.size);
-
-    // ✅ IMPORTANTE: toppings para cualquier producto que tenga toppingsIncludedMax > 0
     const maxToppings = it.product.toppingsIncludedMax ?? 0;
-    const toppingsNames =
-      maxToppings > 0 ? formatToppingsNames(it.toppingIds, toppingsCatalog) : undefined;
+    const toppingNames = maxToppings > 0 ? getToppingNamesList(it.toppingIds, toppingsCatalog) : [];
+    const extrasDetail = getExtrasDetail(it.extrasQty, it.qty, extrasCatalog, it.extraSelections ?? {}, toppingsCatalog);
+    const itemDiscounts = it.discounts ?? [];
+    const itemDiscountTotal = itemDiscounts.reduce((s, d) => s + d.descuento, 0);
+    const extrasTotalMonto = extrasDetail.reduce((s, e) => s + e.total, 0);
+    const netTotal = it.baseLine + extrasTotalMonto - itemDiscountTotal;
 
-    const extrasNames = formatExtrasNames(it.extrasQty, extrasCatalog, it.extraSelections ?? {}, toppingsCatalog);
+    const lines: string[] = [];
+    lines.push(`*${idx + 1}) x${it.qty} ${pickCategoryEmoji(it.product)} ${it.product.name}*`);
+    if (detail) lines.push(detail);
+    lines.push(`Precio del producto: *${cop(it.baseLine)}*`);
 
-    const head = `${idx + 1}) x${it.qty} ${pickCategoryEmoji(it.product)} *${it.product.name}*${
-      detail ? `\n   ▸ ${detail}` : ""
-    }`;
+    if (toppingNames.length) {
+      lines.push("", "🍬 *Incluye:*");
+      toppingNames.forEach((n) => lines.push(`• ${n}`));
+    }
 
-    const toppingLine = toppingsNames
-      ? `   ▸ 🍬 *Toppings* (máx. ${maxToppings}): ${toppingsNames}`
-      : null;
+    if (extrasDetail.length) {
+      lines.push("", "➕ *Adiciones:*");
+      extrasDetail.forEach((e) => {
+        const sel = e.selectionNames?.length ? ` (${e.selectionNames.join(", ")})` : "";
+        lines.push(`• ${e.name}${e.qty > 1 ? ` x${e.qty}` : ""}${sel}: ${cop(e.total)}`);
+      });
+    }
 
-    const extrasLine = extrasNames ? `   ▸ ✨ *Extras:* ${extrasNames}` : null;
+    if (itemDiscounts.length) {
+      lines.push("");
+      itemDiscounts.forEach((d) => lines.push(`${d.nombre}: _-${cop(d.descuento)}_`));
+    }
 
-    return [head, toppingLine, extrasLine].filter((x): x is string => x != null);
+    lines.push("", `*Subtotal del producto: ${cop(netTotal)}*`);
+
+    return lines.join("\n");
   });
-
-  const deliveryLine =
-    service === "domicilio" ? `Entrega: ${cop(delivery)}` : `Entrega: ${cop(0)}`;
 
   const payEmoji = paymentMethod === "Transferencia" ? "🏦" : "💵";
 
-  const headerLines = [`👋 *Nuevo pedido*`, `🧾 *Código:* ${code}`, `🌐 *Origen:* ${origin}`];
+  const headerLines = [`👋 *¡Nuevo pedido recibido!*`, `🧾 *Código:* ${code}`, `🌐 *Origen:* ${origin}`];
 
   const customerSection = [
     section("🙋 Datos del cliente"),
@@ -239,30 +254,34 @@ export function buildWhatsAppMessage(args: {
     deliveryPendingLine ?? null,
   ];
 
-  const productsSection = [section("� Productos"), ...productLines];
+  const productsSection = [section("🛍️ Detalle del pedido"), "", productBlocks.join("\n\n\n")];
 
   const commentsSection = comments?.trim()
     ? [section("📝 Comentarios"), comments.trim()]
     : [];
 
-  const sendSection = [section("� Enviar"), `Envíanos este mensaje ahora y confirmamos tu pedido 🙌`];
+  const deliveryLine = service === "domicilio" ? `${pickServiceEmoji(service)} Domicilio: *${cop(delivery)}*` : null;
 
-  const discountLines = descuentoTotal > 0
-    ? appliedPromotions.map((p) => `${p.nombre}: -*${cop(p.descuento)}*`)
-    : [];
-
-  const totalsSection = [
-    section("💰 Totales"),
-    `Subtotal: *${cop(subtotal)}*`,
+  const paymentSummarySection = [
+    section("💰 Resumen de pago"),
+    `Productos: *${cop(subtotal - descuentoTotal)}*`,
     deliveryLine,
-    ...discountLines,
-    `Total: *${cop(total)}*`,
-    `${payEmoji} Método de pago: *${paymentMethod}*`,
-    `Nequi / Llave: *${NEQUI_PHONE}*`,
-    paymentMethod === "Transferencia"
-      ? `📎 Si pagas por transferencia, envíanos el comprobante para confirmar el pedido.`
-      : `✅ Si pagas en efectivo, por favor ten el valor exacto si es posible.`,
+    "",
+    `💳 *TOTAL A PAGAR: ${cop(total)}*`,
   ];
+
+  const paymentMethodSection = [
+    section(`${payEmoji} Método de pago`),
+    `*${paymentMethod}*`,
+    "",
+    `Nequi / Llave: *${NEQUI_PHONE}*`,
+    "",
+    paymentMethod === "Transferencia"
+      ? `📎 Envíanos el comprobante para confirmar tu pedido.`
+      : `✅ Ten el valor exacto si es posible.`,
+  ];
+
+  const footerSection = ["", `🌶️ *¡Gracias por pecar con nosotros!*`];
 
   return [
     ...headerLines,
@@ -270,8 +289,9 @@ export function buildWhatsAppMessage(args: {
     ...serviceSection,
     ...productsSection,
     ...commentsSection,
-    ...sendSection,
-    ...totalsSection,
+    ...paymentSummarySection,
+    ...paymentMethodSection,
+    ...footerSection,
   ]
     .filter((line): line is string => line !== null && line !== undefined)
     .join("\n");

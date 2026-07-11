@@ -20,6 +20,7 @@ import AdminLayout from '../components/admin/AdminLayout';
 import OrderEditModal from '../components/admin/OrderEditModal';
 import ClientDetailModal from '../components/admin/ClientDetailModal';
 import WhatsAppQuickSend from '../components/admin/WhatsAppQuickSend';
+import BirthdayCalendar from '../components/admin/BirthdayCalendar';
 
 const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
   todos: 'Todos',
@@ -62,7 +63,7 @@ export default function AdminDashboard() {
   const [filterOpen, setFilterOpen] = useState(false);
   const navigate = useNavigate();
   const [editingOrder, setEditingOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones'>('pedidos');
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'cumpleanos' | 'estadisticas' | 'productos' | 'categorias' | 'promociones'>('pedidos');
 
   const [products, setProducts] = useState<FirestoreProduct[]>([]);
   const [prodLoading, setProdLoading] = useState(false);
@@ -262,10 +263,11 @@ export default function AdminDashboard() {
         }
       });
     }
-    if (activeTab === 'clientes') {
+    if (activeTab === 'clientes' || activeTab === 'cumpleanos') {
       loadClients();
     }
     if (activeTab === 'promociones') {
+      if (products.length === 0) loadProductsAndCategories();
       loadPromos();
     }
   }, [activeTab]);
@@ -1196,6 +1198,16 @@ export default function AdminDashboard() {
           />
         )}
 
+        {activeTab === 'cumpleanos' && (
+          <>
+            {clientsLoading ? (
+              <div className="p-12 text-center text-gray-500 text-sm">Cargando clientes...</div>
+            ) : (
+              <BirthdayCalendar clients={clients} />
+            )}
+          </>
+        )}
+
         {activeTab === 'estadisticas' && (
           <div className="p-12 text-center">
             <div className="text-sm" style={{ color: '#888' }}>Estadísticas en construcción.</div>
@@ -1685,13 +1697,39 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">IDs de productos (separados por coma, vacío = todos)</label>
-                  <input
-                    value={promoForm.productosIds}
-                    onChange={e => setPromoForm({ ...promoForm, productosIds: e.target.value })}
-                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
-                    placeholder="minipecado-40, pecado-real"
-                  />
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Productos a los que aplica (ninguno marcado = aplica a todos)
+                  </label>
+                  {products.length === 0 ? (
+                    <div className="text-xs text-gray-400 border border-dashed border-gray-200 rounded p-3">
+                      No hay productos creados todavía. Ve a la pestaña "Productos" para agregarlos.
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded divide-y divide-gray-100">
+                      {products.map((p) => {
+                        const selectedIds = promoForm.productosIds
+                          ? promoForm.productosIds.split(',').map(s => s.trim()).filter(Boolean)
+                          : [];
+                        const checked = selectedIds.includes(p.id!);
+                        return (
+                          <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? selectedIds.filter(id => id !== p.id)
+                                  : [...selectedIds, p.id!];
+                                setPromoForm({ ...promoForm, productosIds: next.join(', ') });
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-gray-700">{p.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1784,7 +1822,9 @@ export default function AdminDashboard() {
                             {p.tipo === 'porcentaje' ? `${p.valor}%` : cop(p.valor)}
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500">
-                            {p.productosIds?.length ? p.productosIds.join(', ') : 'Todos'}
+                            {p.productosIds?.length
+                              ? p.productosIds.map(id => products.find(prod => prod.id === id)?.name || id).join(', ')
+                              : 'Todos'}
                           </td>
                           <td className="px-4 py-3">
                             <button

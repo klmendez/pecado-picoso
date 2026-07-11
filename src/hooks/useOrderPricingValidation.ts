@@ -34,13 +34,19 @@ type Params = {
   birthdayKey?: string | null;
 };
 
+export type ItemDiscount = { nombre: string; descuento: number };
+
+export type PricedOrderItem = OrderItem & {
+  baseUnit: number;
+  extrasUnit: number;
+  unit: number;
+  line: number;
+  baseLine: number;
+  discounts: ItemDiscount[];
+};
+
 type Result = {
-  pricedItems: (OrderItem & {
-    baseUnit: number;
-    extrasUnit: number;
-    unit: number;
-    line: number;
-  })[];
+  pricedItems: PricedOrderItem[];
   subtotal: number;
   delivery: number;
   total: number;
@@ -54,7 +60,7 @@ type Result = {
 };
 
 export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [], birthdayKey = null }: Params): Result {
-  const pricedItems = useMemo(() => {
+  const pricedItemsBase = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(
         it.product,
@@ -64,21 +70,32 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
       const extrasUnit = extrasTotal(it.extrasQty, EXTRAS);
       const unit = baseUnit + extrasUnit;
       const line = unit * it.qty;
-      return { ...it, baseUnit, extrasUnit, unit, line };
+      const baseLine = baseUnit * it.qty;
+      return { ...it, baseUnit, extrasUnit, unit, line, baseLine };
     });
   }, [items]);
 
-  const subtotal = useMemo(() => pricedItems.reduce((sum, it) => sum + it.line, 0), [pricedItems]);
+  const subtotal = useMemo(() => pricedItemsBase.reduce((sum, it) => sum + it.line, 0), [pricedItemsBase]);
   const delivery = useMemo(() => deliveryCost(service, barrio), [service, barrio]);
 
-  const { descuentoTotal, appliedPromotions } = useMemo(() => {
-    if (!pricedItems.length) return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[] };
+  const { descuentoTotal, appliedPromotions, itemDiscounts } = useMemo(() => {
+    if (!pricedItemsBase.length) {
+      return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[], itemDiscounts: {} as Record<string, ItemDiscount[]> };
+    }
 
     const applied: AppliedPromotion[] = [];
     let totalDiscount = 0;
+    const itemDiscounts: Record<string, ItemDiscount[]> = {};
+
+    const addItemDiscount = (itemId: string, nombre: string, monto: number) => {
+      if (monto <= 0) return;
+      if (!itemDiscounts[itemId]) itemDiscounts[itemId] = [];
+      itemDiscounts[itemId].push({ nombre, descuento: monto });
+    };
 
     if (isBirthdayToday(birthdayKey)) {
-      const itemsSubtotal = pricedItems.reduce((s, it) => s + it.line, 0);
+      // El descuento aplica solo al precio base del producto, no a los extras.
+      const itemsSubtotal = pricedItemsBase.reduce((s, it) => s + it.baseLine, 0);
       const discount = Math.round(itemsSubtotal * BIRTHDAY_DISCOUNT_PERCENT / 100);
       if (discount > 0) {
         totalDiscount += discount;
@@ -89,14 +106,17 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
           valor: BIRTHDAY_DISCOUNT_PERCENT,
           descuento: discount,
         });
+        for (const it of pricedItemsBase) {
+          addItemDiscount(it.id, "🎂 Descuento de cumpleaños", Math.round(it.baseLine * BIRTHDAY_DISCOUNT_PERCENT / 100));
+        }
       }
     }
 
     for (const promo of promotions) {
       if (!promo.activa) continue;
       const targetItems = promo.productosIds?.length
-        ? pricedItems.filter(it => promo.productosIds.includes(it.product.id))
-        : pricedItems;
+        ? pricedItemsBase.filter(it => promo.productosIds.includes(it.product.id))
+        : pricedItemsBase;
 
       if (!targetItems.length) continue;
 
@@ -105,17 +125,28 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
         if (totalQty < promo.cantidadMinima) continue;
       }
 
+      // Las promociones aplican solo al precio base del producto, no a los extras.
       let discount = 0;
       if (promo.tipo === 'porcentaje') {
-        const itemsSubtotal = targetItems.reduce((s, it) => s + it.line, 0);
+        const itemsSubtotal = targetItems.reduce((s, it) => s + it.baseLine, 0);
         discount = Math.round(itemsSubtotal * promo.valor / 100);
+        if (discount > 0) {
+          for (const it of targetItems) {
+            addItemDiscount(it.id, `🔥 ${promo.nombre}`, Math.round(it.baseLine * promo.valor / 100));
+          }
+        }
       } else if (promo.tipo === 'valor_fijo') {
         discount = promo.valor;
+        // Monto fijo: se descuenta una sola vez del pedido, no se reparte por producto.
       } else if (promo.tipo === '2x1') {
-        // For each pair, discount the cheapest
+        // Por cada par, se regala el producto base (los extras de ese item se siguen cobrando)
         for (const it of targetItems) {
           const freeItems = Math.floor(it.qty / 2);
-          if (freeItems > 0) discount += it.unit * freeItems;
+          if (freeItems > 0) {
+            const itemDiscount = it.baseUnit * freeItems;
+            discount += itemDiscount;
+            addItemDiscount(it.id, `🔥 ${promo.nombre}`, itemDiscount);
+          }
         }
       }
 
@@ -131,8 +162,12 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
       }
     }
 
-    return { descuentoTotal: totalDiscount, appliedPromotions: applied };
-  }, [pricedItems, promotions, birthdayKey]);
+    return { descuentoTotal: totalDiscount, appliedPromotions: applied, itemDiscounts };
+  }, [pricedItemsBase, promotions, birthdayKey]);
+
+  const pricedItems = useMemo<PricedOrderItem[]>(() => {
+    return pricedItemsBase.map((it) => ({ ...it, discounts: itemDiscounts[it.id] || [] }));
+  }, [pricedItemsBase, itemDiscounts]);
 
   const total = subtotal + delivery - descuentoTotal;
   const totalConDescuento = total;

@@ -4,7 +4,7 @@ import type { PedidoFirestore } from '../../types/order';
 import { cop } from '../../lib/format';
 import { TOPPINGS } from '../../data/toppings';
 import { EXTRAS } from '../../data/extras';
-import { formatToppingsNames, formatExtrasNames } from '../../lib/whatsapp';
+import { getToppingNamesList, getExtrasDetail } from '../../lib/whatsapp';
 import { isFixedPrice } from '../../data/products';
 import { OrderService } from '../../services/orderService';
 
@@ -360,10 +360,10 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
               {/* Productos */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="mb-3 text-lg font-semibold text-black">Productos ({order.items.length})</h3>
-                
-                <div className="space-y-3">
+
+                <div className="space-y-4">
                   {order.items.map((item, index) => {
-                    // Calcular precio unitario del item
+                    // Precio base del producto (sin extras)
                     let unitPrice = 0;
                     if (item.product.category === 'gomitas') {
                       if (item.version && item.size) {
@@ -377,66 +377,73 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
                       }
                     }
 
-                    // Sumar extras
-                    let extrasTotal = 0;
-                    for (const [id, qty] of Object.entries(item.extrasQty || {})) {
-                      const extra = EXTRAS.find(e => e.id === id);
-                      if (extra && qty > 0) extrasTotal += extra.price * qty;
-                    }
-
-                    const itemTotal = (unitPrice + extrasTotal) * item.qty;
-                    const toppingsText = formatToppingsNames(item.toppingIds, TOPPINGS);
-                    const extrasText = formatExtrasNames(item.extrasQty, EXTRAS, item.extraSelections ?? {}, TOPPINGS);
+                    const baseLine = unitPrice * item.qty;
+                    const maxToppings = item.product.toppingsIncludedMax ?? 0;
+                    const toppingNames = maxToppings > 0 ? getToppingNamesList(item.toppingIds, TOPPINGS) : [];
+                    const extrasDetail = getExtrasDetail(item.extrasQty, item.qty, EXTRAS, item.extraSelections ?? {}, TOPPINGS);
+                    const extrasTotalMonto = extrasDetail.reduce((s, e) => s + e.total, 0);
+                    const itemDiscounts = item.discounts ?? [];
+                    const itemDiscountTotal = itemDiscounts.reduce((s, d) => s + d.descuento, 0);
+                    const netTotal = baseLine + extrasTotalMonto - itemDiscountTotal;
 
                     return (
-                      <div key={item.id || index} className="border-b border-gray-100 py-3">
+                      <div key={item.id || index} className="border border-gray-200 rounded-lg p-3">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-black">{item.product.name}</h4>
-                            <div className="mt-1 text-sm text-gray-600">
-                              Cantidad: x{item.qty}
-                            </div>
+                          <h4 className="font-semibold text-black">
+                            x{item.qty} {item.product.category === 'gomitas' ? '🌶️' : '🍍'} {item.product.name}
+                          </h4>
+                          <div className="text-right shrink-0 font-bold text-black">{cop(netTotal)}</div>
+                        </div>
 
-                            {/* Detalles del producto */}
-                            <div className="mt-2 space-y-1">
-                              {item.version && (
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium text-gray-800">Versión:</span>{' '}
-                                  {item.version === 'ahogada' ? 'Ahogada' : 'Picosa'}
-                                </div>
-                              )}
-
-                              {item.size && (
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium text-gray-800">Tamaño:</span>{' '}
-                                  {item.size === 'pequeno' ? 'Pequeño' : item.size === 'mediano' ? 'Mediano' : 'Grande'}
-                                </div>
-                              )}
-
-                              {toppingsText && (
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium text-gray-800">Toppings:</span> {toppingsText}
-                                </div>
-                              )}
-
-                              {extrasText && (
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium text-gray-800">Extras:</span> {extrasText}
-                                </div>
-                              )}
-                            </div>
+                        {(item.version || item.size) && (
+                          <div className="mt-1 text-sm text-gray-500">
+                            {item.version === 'ahogada' ? 'Ahogada' : item.version === 'picosa' ? 'Picosa' : ''}
+                            {item.version && item.size ? ' · ' : ''}
+                            {item.size === 'pequeno' ? 'Pequeño' : item.size === 'mediano' ? 'Mediano' : item.size === 'grande' ? 'Grande' : ''}
                           </div>
+                        )}
 
-                          <div className="text-right shrink-0">
-                            <div className="font-bold text-black">
-                              {cop(itemTotal)}
-                            </div>
-                            {(unitPrice + extrasTotal) !== itemTotal && (
-                              <div className="text-xs text-gray-400">
-                                {cop(unitPrice + extrasTotal)} c/u
+                        <div className="mt-1 text-sm text-gray-600">Precio del producto: {cop(baseLine)}</div>
+
+                        {toppingNames.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🍬 Incluye</div>
+                            <ul className="mt-1 space-y-0.5">
+                              {toppingNames.map((n, i) => (
+                                <li key={i} className="text-sm text-gray-600">• {n}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {extrasDetail.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">➕ Adiciones</div>
+                            <ul className="mt-1 space-y-0.5">
+                              {extrasDetail.map((e, i) => (
+                                <li key={i} className="flex justify-between text-sm text-gray-600">
+                                  <span>• {e.name}{e.qty > 1 ? ` x${e.qty}` : ''}{e.selectionNames?.length ? ` (${e.selectionNames.join(', ')})` : ''}</span>
+                                  <span>{cop(e.total)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {itemDiscounts.length > 0 && (
+                          <div className="mt-2 space-y-0.5">
+                            {itemDiscounts.map((d, i) => (
+                              <div key={i} className="flex justify-between text-sm text-rojo">
+                                <span>{d.nombre}</span>
+                                <span>-{cop(d.descuento)}</span>
                               </div>
-                            )}
+                            ))}
                           </div>
+                        )}
+
+                        <div className="mt-2 flex justify-between border-t border-gray-100 pt-2 text-sm font-semibold text-black">
+                          <span>Subtotal del producto</span>
+                          <span>{cop(netTotal)}</span>
                         </div>
                       </div>
                     );

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut, Users, Tag } from 'lucide-react';
+import { Package, BarChart3, Home, ChevronLeft, ChevronRight, Menu, X, Download, LogOut, Users, Tag, Calendar } from 'lucide-react';
 import { getAuth, signOut } from 'firebase/auth';
 
+export type AdminSection = 'pedidos' | 'clientes' | 'cumpleanos' | 'estadisticas' | 'productos' | 'categorias' | 'promociones';
+
 interface AdminLayoutProps {
-  activeSection?: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones';
-  onChangeSection?: (s: 'pedidos' | 'clientes' | 'estadisticas' | 'productos' | 'categorias' | 'promociones') => void;
+  activeSection?: AdminSection;
+  onChangeSection?: (s: AdminSection) => void;
   onExportCSV?: () => void;
   children: React.ReactNode;
 }
@@ -13,6 +15,7 @@ interface AdminLayoutProps {
 const sections = [
   { id: 'pedidos' as const, label: 'Pedidos', icon: Package },
   { id: 'clientes' as const, label: 'Clientes', icon: Users },
+  { id: 'cumpleanos' as const, label: 'Cumpleaños', icon: Calendar },
   { id: 'categorias' as const, label: 'Categorías', icon: Package },
   { id: 'productos' as const, label: 'Productos', icon: Package },
   { id: 'promociones' as const, label: 'Promociones', icon: Tag },
@@ -22,6 +25,7 @@ const sections = [
 const sectionTitles: Record<string, string> = {
   pedidos: 'Pedidos',
   clientes: 'Clientes',
+  cumpleanos: 'Cumpleaños',
   categorias: 'Categorías',
   productos: 'Productos',
   promociones: 'Promociones',

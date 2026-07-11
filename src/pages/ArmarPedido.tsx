@@ -669,7 +669,7 @@ export default function ArmarPedido() {
       <CartDrawer
         isOpen={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
-        items={items}
+        items={pricedItems}
         subtotal={subtotal}
         delivery={delivery}
         total={total}

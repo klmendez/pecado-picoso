@@ -16,14 +16,13 @@ type Params = {
   reference: string;
   paymentMethod: PaymentMethod;
   comments: string;
-  items: OrderItem[];
+  items: (OrderItem & { baseLine: number })[];
   subtotal: number;
   delivery: number;
   total: number;
   destination?: string;
   locationLink?: string;
   descuentoTotal?: number;
-  appliedPromotions?: { nombre: string; descuento: number }[];
 };
 
 export function useOrderMessage(params: Params) {
@@ -43,7 +42,6 @@ export function useOrderMessage(params: Params) {
     destination = `57${WHATSAPP_PHONE}`,
     locationLink,
     descuentoTotal = 0,
-    appliedPromotions = [],
   } = params;
 
   const openWhatsApp = useCallback(() => {
@@ -72,7 +70,6 @@ export function useOrderMessage(params: Params) {
       comments: comments.trim() || undefined,
       locationLink,
       descuentoTotal,
-      appliedPromotions,
     });
 
     window.open(waLink(destination, message), "_blank");
@@ -92,7 +89,6 @@ export function useOrderMessage(params: Params) {
     destination,
     locationLink,
     descuentoTotal,
-    appliedPromotions,
   ]);
 
   return { openWhatsApp };
