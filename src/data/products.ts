@@ -19,6 +19,7 @@ type BaseProduct = {
   description: string;
   badge?: string;
   image?: string;
+  disponible?: boolean; // false = el admin lo desactivó, no se puede pedir
 };
 
 type GomitasProduct = BaseProduct & {

@@ -25,6 +25,7 @@ export interface CustomerInfo {
   ubicacionTiempoReal?: CustomerLocation[];
   fechaNacimiento?: string; // formato "MM-DD"
   correo?: string;
+  cedula?: string; // requerida para validar el descuento de cumpleaños
 }
 
 export type OrderStatus = 'no_pagado' | 'pagado' | 'preparando' | 'en_camino' | 'entregado' | 'cancelado';

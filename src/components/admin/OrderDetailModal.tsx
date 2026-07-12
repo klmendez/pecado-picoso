@@ -311,11 +311,18 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
                     </div>
                   </div>
                   
+                  {order.cliente.cedula && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">🎂 Cédula (descuento cumpleaños):</span>
+                      <span className="text-black font-semibold">{order.cliente.cedula}</span>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Servicio:</span>
                     <span className="text-black">{order.servicio === 'domicilio' ? 'Domicilio' : 'Para llevar'}</span>
                   </div>
-                  
+
                   {order.servicio === 'domicilio' && (
                     <>
                       <div className="flex items-center justify-between">

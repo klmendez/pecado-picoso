@@ -21,6 +21,7 @@ export interface FirestoreProduct {
   sizes?: string[];
   categoryId: string;
   image?: string;
+  disponible?: boolean; // false = desactivado por el admin
   createdAt?: any;
 }
 

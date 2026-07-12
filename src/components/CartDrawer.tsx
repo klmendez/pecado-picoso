@@ -81,7 +81,8 @@ export default function CartDrawer({
     delivery,
     total,
     locationLink,
-    descuentoTotal
+    descuentoTotal,
+    birthdayKey: toBirthdayKey(birthday)
   });
 
   useEffect(() => {

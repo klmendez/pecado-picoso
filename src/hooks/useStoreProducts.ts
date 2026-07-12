@@ -50,6 +50,7 @@ export function useStoreProducts() {
           name: fp.name,
           description: fp.description || "",
           image: fp.image,
+          disponible: fp.disponible !== false,
         };
 
         if (isGomitas) {

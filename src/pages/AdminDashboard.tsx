@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, Eye, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter, ArrowUp, ArrowDown, Download, UserPlus, X as XIcon
+  Search, Eye, EyeOff, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter, ArrowUp, ArrowDown, Download, UserPlus, X as XIcon
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { OrderService } from '../services/orderService';
@@ -21,6 +21,9 @@ import OrderEditModal from '../components/admin/OrderEditModal';
 import ClientDetailModal from '../components/admin/ClientDetailModal';
 import WhatsAppQuickSend from '../components/admin/WhatsAppQuickSend';
 import BirthdayCalendar from '../components/admin/BirthdayCalendar';
+import { TOPPINGS } from '../data/toppings';
+import { ToppingAvailabilityService } from '../services/toppingAvailabilityService';
+import { useToppingAvailability } from '../hooks/useToppingAvailability';
 
 const STATUS_LABELS: Record<OrderStatus | 'todos', string> = {
   todos: 'Todos',
@@ -62,6 +65,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const navigate = useNavigate();
+  const { disabledToppingIds } = useToppingAvailability();
   const [editingOrder, setEditingOrder] = useState<(PedidoFirestore & { id: string }) | null>(null);
   const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'cumpleanos' | 'estadisticas' | 'productos' | 'categorias' | 'promociones'>('pedidos');
 
@@ -81,6 +85,7 @@ export default function AdminDashboard() {
     sizes: '',
     categoryId: '',
     image: '',
+    disponible: true,
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [prodError, setProdError] = useState<string | null>(null);
@@ -395,6 +400,7 @@ export default function AdminDashboard() {
       image: prodForm.image.trim(),
       toppingsIncludedMax: Number(prodForm.toppingsIncludedMax) || 0,
       sizes: prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean),
+      disponible: prodForm.disponible,
     };
 
     if (prodForm.priceType === 'fijo') {
@@ -453,7 +459,7 @@ export default function AdminDashboard() {
       setProdForm({
         name: '', description: '', price: '', priceType: 'fijo',
         priceOptions: { fijo: '', porSize: { pequeno: '', mediano: '', grande: '' }, porVersion: { ahogada: { pequeno: '', mediano: '', grande: '' }, picosa: { pequeno: '', mediano: '', grande: '' } } },
-        toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '',
+        toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', disponible: true,
       });
       const updated = await ProductService.getProducts();
       setProducts(updated);
@@ -493,6 +499,7 @@ export default function AdminDashboard() {
       sizes: (p.sizes || []).join(', '),
       categoryId: p.categoryId,
       image: p.image || '',
+      disponible: p.disponible !== false,
     });
   };
 
@@ -501,7 +508,7 @@ export default function AdminDashboard() {
     setProdForm({
       name: '', description: '', price: '', priceType: 'fijo',
       priceOptions: { fijo: '', porSize: { pequeno: '', mediano: '', grande: '' }, porVersion: { ahogada: { pequeno: '', mediano: '', grande: '' }, picosa: { pequeno: '', mediano: '', grande: '' } } },
-      toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '',
+      toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', disponible: true,
     });
   };
 
@@ -512,6 +519,25 @@ export default function AdminDashboard() {
       setProducts(products.filter(p => p.id !== id));
     } catch (err: any) {
       alert('Error al eliminar: ' + err.message);
+    }
+  };
+
+  const handleToggleProductAvailability = async (p: FirestoreProduct) => {
+    const nextDisponible = p.disponible === false;
+    try {
+      await ProductService.updateProduct(p.id!, { disponible: nextDisponible });
+      setProducts(products.map(prod => prod.id === p.id ? { ...prod, disponible: nextDisponible } : prod));
+    } catch (err: any) {
+      alert('Error al actualizar disponibilidad: ' + err.message);
+    }
+  };
+
+  const handleToggleTopping = async (toppingId: string) => {
+    const isDisabled = disabledToppingIds.includes(toppingId);
+    try {
+      await ToppingAvailabilityService.setToppingAvailability(toppingId, !isDisabled);
+    } catch (err: any) {
+      alert('Error al actualizar disponibilidad del topping: ' + err.message);
     }
   };
 
@@ -1339,6 +1365,7 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'productos' && (
+          <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Formulario productos */}
             <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px', padding: '20px' }}>
@@ -1546,6 +1573,19 @@ export default function AdminDashboard() {
                     <img src={prodForm.image} alt="preview" className="mt-2 w-12 h-12 object-cover rounded" />
                   )}
                 </div>
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={prodForm.disponible}
+                      onChange={(e) => setProdForm({ ...prodForm, disponible: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm" style={{ color: '#666' }}>
+                      Disponible para pedir {!prodForm.disponible && <span className="text-red-600 font-medium">(el cliente lo verá como "No disponible")</span>}
+                    </span>
+                  </label>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="submit"
@@ -1591,11 +1631,28 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate" style={{ color: '#333' }}>{p.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium truncate" style={{ color: '#333' }}>{p.name}</p>
+                            {p.disponible === false && (
+                              <span className="shrink-0 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600">
+                                No disponible
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs" style={{ color: '#888' }}>
                             {cop(p.price ?? 0)} · {catName}
                           </p>
                         </div>
+                        <button
+                          onClick={() => handleToggleProductAvailability(p)}
+                          className="inline-flex items-center justify-center cursor-pointer"
+                          style={{ width: '32px', height: '32px', borderRadius: '4px', border: 'none', background: 'transparent', color: p.disponible === false ? '#dc2626' : '#888', transition: 'color 0.15s ease, background 0.15s ease' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f5f5'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                          title={p.disponible === false ? 'Marcar como disponible' : 'Marcar como no disponible'}
+                        >
+                          {p.disponible === false ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
                         <button
                           onClick={() => handleEditProduct(p)}
                           className="inline-flex items-center justify-center cursor-pointer"
@@ -1623,6 +1680,44 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
+
+          {/* Disponibilidad de toppings */}
+          <div className="mt-6" style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px', padding: '20px' }}>
+            <h2 className="text-base font-medium mb-1" style={{ color: '#333' }}>Toppings disponibles</h2>
+            <p className="text-xs mb-4" style={{ color: '#888' }}>
+              Desactiva un topping para que los clientes no puedan elegirlo al armar su pedido.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+              {TOPPINGS.map((t) => {
+                const disabled = disabledToppingIds.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleToggleTopping(t.id)}
+                    className="flex flex-col items-center gap-1.5"
+                    title={disabled ? 'Marcar como disponible' : 'Marcar como no disponible'}
+                  >
+                    <div className={["relative w-14 h-14 rounded-full overflow-hidden ring-1", disabled ? "ring-red-200 opacity-50 grayscale" : "ring-gray-200"].join(" ")}>
+                      <img src={t.imageSrc} alt={t.name} className="h-full w-full object-cover" loading="lazy" />
+                      {disabled && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <EyeOff size={16} className="text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <span className={["text-[11px] text-center leading-tight", disabled ? "text-red-500 font-medium" : "text-gray-600"].join(" ")}>
+                      {t.name}
+                    </span>
+                    <span className={["text-[9px] font-bold uppercase", disabled ? "text-red-400" : "text-green-600"].join(" ")}>
+                      {disabled ? "No disponible" : "Disponible"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          </>
         )}
 
         {activeTab === 'promociones' && (

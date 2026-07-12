@@ -36,6 +36,7 @@ export interface FirestoreClient {
   updatedAt: Timestamp;
   fechaNacimiento?: string; // formato "MM-DD"
   correo?: string;
+  cedula?: string;
   notaAdmin?: string;
   etiquetas?: string[];
 }
@@ -70,6 +71,7 @@ export class ClientService {
     totalPedido: number;
     fechaNacimiento?: string;
     correo?: string;
+    cedula?: string;
   }): Promise<void> {
     try {
       const cleanPhone = data.celular.replace(/\D/g, '');
@@ -121,6 +123,7 @@ export class ClientService {
             updatedAt: now,
             fechaNacimiento: data.fechaNacimiento || existing.fechaNacimiento || null,
             correo: data.correo || existing.correo || null,
+            cedula: data.cedula || existing.cedula || null,
           });
         } else {
           // Cliente nuevo: crear
@@ -146,6 +149,7 @@ export class ClientService {
             updatedAt: now,
             fechaNacimiento: data.fechaNacimiento || null,
             correo: data.correo || null,
+            cedula: data.cedula || null,
           });
         }
       });
@@ -198,6 +202,7 @@ export class ClientService {
       nombres?: string;
       fechaNacimiento?: string | null;
       correo?: string | null;
+      cedula?: string | null;
       notaAdmin?: string | null;
       etiquetas?: string[];
     }
@@ -226,6 +231,7 @@ export class ClientService {
         nombres: patch.nombres ?? existing.nombres,
         fechaNacimiento: patch.fechaNacimiento !== undefined ? (patch.fechaNacimiento || null) : (existing.fechaNacimiento || null),
         correo: patch.correo !== undefined ? (patch.correo || null) : (existing.correo || null),
+        cedula: patch.cedula !== undefined ? (patch.cedula || null) : (existing.cedula || null),
         notaAdmin: patch.notaAdmin !== undefined ? (patch.notaAdmin || null) : (existing.notaAdmin || null),
         etiquetas: patch.etiquetas ?? existing.etiquetas ?? [],
         updatedAt: now,

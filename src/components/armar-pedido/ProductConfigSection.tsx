@@ -36,6 +36,7 @@ type Props = {
   onFocusProduct?: (itemId: string | null) => void;
   onGoToNext?: () => void;
   showIncompleteWarning?: boolean;
+  disabledToppingIds?: string[];
 };
 
 export function isItemConfigComplete(item: OrderItem) {
@@ -79,6 +80,7 @@ export default function ProductConfigSection({
   onFocusProduct,
   onGoToNext,
   showIncompleteWarning = false,
+  disabledToppingIds = [],
 }: Props) {
   if (!items.length) return null;
 
@@ -334,6 +336,7 @@ export default function ProductConfigSection({
                         small
                         title="Toppings"
                         subtitle={isGomitas ? "Selecciona (mínimo 1)" : `Opcional (hasta ${maxT})`}
+                        disabledIds={disabledToppingIds}
                       />
                     ) : null}
 
@@ -408,6 +411,7 @@ export default function ProductConfigSection({
                                     small
                                     title="Gomitas extra"
                                     subtitle={`Selecciona ${qty} ${qty === 1 ? "opción" : "opciones"}`}
+                                    disabledIds={disabledToppingIds}
                                   />
                                 </div>
                               ) : null}

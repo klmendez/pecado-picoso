@@ -6,8 +6,6 @@ import type { OrderItem, Service } from "../lib/whatsapp";
 import { deliveryCost, extrasTotal, getBasePrice } from "../lib/pricing";
 import { maxToppingsFor } from "../components/armar-pedido/utils";
 import type { Promotion, AppliedPromotion } from "../types/promotion";
-import { BIRTHDAY_DISCOUNT_PERCENT } from "../data/constants";
-import { isBirthdayToday } from "../lib/birthday";
 
 export type ChecklistItem = {
   id: "products" | "config" | "customer" | "delivery" | "total";
@@ -31,7 +29,6 @@ type Params = {
   name: string;
   phone: string;
   promotions?: (Promotion & { id: string })[];
-  birthdayKey?: string | null;
 };
 
 export type ItemDiscount = { nombre: string; descuento: number };
@@ -59,7 +56,7 @@ type Result = {
   sendDisabledHint: string;
 };
 
-export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [], birthdayKey = null }: Params): Result {
+export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [] }: Params): Result {
   const pricedItemsBase = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(
@@ -92,25 +89,6 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
       if (!itemDiscounts[itemId]) itemDiscounts[itemId] = [];
       itemDiscounts[itemId].push({ nombre, descuento: monto });
     };
-
-    if (isBirthdayToday(birthdayKey)) {
-      // El descuento aplica solo al precio base del producto, no a los extras.
-      const itemsSubtotal = pricedItemsBase.reduce((s, it) => s + it.baseLine, 0);
-      const discount = Math.round(itemsSubtotal * BIRTHDAY_DISCOUNT_PERCENT / 100);
-      if (discount > 0) {
-        totalDiscount += discount;
-        applied.push({
-          promoId: "birthday",
-          nombre: `🎂 Descuento de cumpleaños (${BIRTHDAY_DISCOUNT_PERCENT}%)`,
-          tipo: "porcentaje",
-          valor: BIRTHDAY_DISCOUNT_PERCENT,
-          descuento: discount,
-        });
-        for (const it of pricedItemsBase) {
-          addItemDiscount(it.id, "🎂 Descuento de cumpleaños", Math.round(it.baseLine * BIRTHDAY_DISCOUNT_PERCENT / 100));
-        }
-      }
-    }
 
     for (const promo of promotions) {
       if (!promo.activa) continue;
@@ -163,7 +141,7 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
     }
 
     return { descuentoTotal: totalDiscount, appliedPromotions: applied, itemDiscounts };
-  }, [pricedItemsBase, promotions, birthdayKey]);
+  }, [pricedItemsBase, promotions]);
 
   const pricedItems = useMemo<PricedOrderItem[]>(() => {
     return pricedItemsBase.map((it) => ({ ...it, discounts: itemDiscounts[it.id] || [] }));

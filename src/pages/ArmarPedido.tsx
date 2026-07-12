@@ -22,7 +22,7 @@ import { useBarrioSelection } from "../hooks/useBarrioSelection";
 import { useOrderPricingValidation } from "../hooks/useOrderPricingValidation";
 import { useStoreProducts } from "../hooks/useStoreProducts";
 import { usePromotions } from "../hooks/usePromotions";
-import { toBirthdayKey } from "../lib/birthday";
+import { useToppingAvailability } from "../hooks/useToppingAvailability";
 
 const STEP_SEQUENCE = ["productos", "configuracion", "datos", "resumen"] as const;
 type StepId = (typeof STEP_SEQUENCE)[number];
@@ -64,9 +64,10 @@ export default function ArmarPedido() {
   } = useBarrioSelection(service);
 
   const { promotions } = usePromotions();
+  const { disabledToppingIds } = useToppingAvailability();
 
   const { pricedItems, subtotal, delivery, total, descuentoTotal, appliedPromotions, canSend, sendDisabledHint, validation } =
-    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions, birthdayKey: toBirthdayKey(birthday) });
+    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions });
 
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -409,6 +410,7 @@ export default function ArmarPedido() {
         onFocusProduct={handleFocusProduct}
         onGoToNext={goToNextStep}
         showIncompleteWarning={showConfigWarning}
+        disabledToppingIds={disabledToppingIds}
       />
 
       <div className="hidden sm:flex sm:items-center sm:justify-between">

@@ -316,6 +316,12 @@ export default function OrderDetailPage() {
                     </button>
                   </div>
                 </div>
+                {order.cliente.cedula && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">🎂 Cedula (descuento cumpleanos):</span>
+                    <span className="text-black font-semibold">{order.cliente.cedula}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Servicio:</span>
                   <span className="text-black">{order.servicio === 'domicilio' ? 'Domicilio' : 'Para llevar'}</span>

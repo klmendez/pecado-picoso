@@ -199,7 +199,14 @@ export default function Catalogo({
                             {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
                           </div>
 
-                          <div className="mt-1 text-lg sm:text-xl font-semibold leading-snug text-black">{p.name}</div>
+                          <div className="mt-1 flex items-center gap-2 text-lg sm:text-xl font-semibold leading-snug text-black">
+                            {p.name}
+                            {p.disponible === false && (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                                No disponible
+                              </span>
+                            )}
+                          </div>
 
                           <div className="mt-2 text-base font-bold text-gray-700">{priceLine(p)}</div>
 

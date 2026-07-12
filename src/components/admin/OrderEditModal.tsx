@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { X, Save, Plus, Minus, Trash2, Pencil } from 'lucide-react';
+import { X, Save, Plus, Minus, Trash2, Pencil, Cake } from 'lucide-react';
 import { deleteField } from 'firebase/firestore';
 import { OrderService } from '../../services/orderService';
 import type { PedidoFirestore, OrderStatus, PaymentDetail } from '../../types/order';
+import type { AppliedPromotion } from '../../types/promotion';
 import type { OrderItem, PaymentMethod, Service } from '../../lib/whatsapp';
 import { cop } from '../../lib/format';
 import { BARRIOS } from '../../data/barrios';
@@ -10,6 +11,8 @@ import type { Barrio } from '../../data/barrios';
 import { EXTRAS } from '../../data/extras';
 import { getBasePrice, extrasTotal, deliveryCost } from '../../lib/pricing';
 import { getAvailableSizes, maxToppingsFor, labelSize, toppingsNames, extrasLine } from '../armar-pedido/utils';
+import { BIRTHDAY_DISCOUNT_PERCENT } from '../../data/constants';
+import { isBirthdayToday } from '../../lib/birthday';
 import Toppings from '../Toppings';
 import Referencias from '../Referencias';
 
@@ -49,6 +52,15 @@ function lineTotal(item: OrderItem): number {
   return (baseUnit + extrasUnit) * item.qty;
 }
 
+function baseLineTotal(item: OrderItem): number {
+  const baseUnit = getBasePrice(
+    item.product,
+    item.product.category === 'gomitas' ? item.version : null,
+    item.size,
+  );
+  return baseUnit * item.qty;
+}
+
 export default function OrderEditModal({ order, onClose, onSave }: OrderEditModalProps) {
   const [editedOrder, setEditedOrder] = useState({
     cliente: {
@@ -76,13 +88,30 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
     order.detallesPago || [{ metodo: 'Efectivo', monto: order.total, entregadoDomiciliario: false }]
   );
 
-  // El descuento original del pedido se mantiene fijo; solo se re-cuadra si supera el nuevo total.
-  const descuentoTotal = order.descuentoTotal || 0;
+  // Otras promociones (no la de cumpleaños) quedan fijas tal como se calcularon al crear el pedido.
+  const otrosDescuentos = (order.promociones || []).filter(p => p.promoId !== 'birthday');
+  const otrosDescuentosTotal = otrosDescuentos.reduce((sum, p) => sum + p.descuento, 0);
+
+  const [aplicarDescuentoCumple, setAplicarDescuentoCumple] = useState(
+    (order.promociones || []).some(p => p.promoId === 'birthday')
+  );
+  const [cedulaVerificada, setCedulaVerificada] = useState(order.cliente.cedula || '');
 
   const subtotal = useMemo(
     () => editedOrder.items.reduce((sum, item) => sum + lineTotal(item), 0),
     [editedOrder.items]
   );
+
+  const baseSubtotal = useMemo(
+    () => editedOrder.items.reduce((sum, item) => sum + baseLineTotal(item), 0),
+    [editedOrder.items]
+  );
+
+  const descuentoCumpleMonto = aplicarDescuentoCumple
+    ? Math.round(baseSubtotal * BIRTHDAY_DISCOUNT_PERCENT / 100)
+    : 0;
+
+  const descuentoTotal = otrosDescuentosTotal + descuentoCumpleMonto;
 
   const delivery = useMemo(
     () => deliveryCost(editedOrder.servicio, editedOrder.servicio === 'domicilio' ? selectedBarrio : null),
@@ -122,9 +151,26 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
       if (editedOrder.items.length === 0) {
         throw new Error('Debe haber al menos un producto');
       }
+      if (aplicarDescuentoCumple && !cedulaVerificada.trim()) {
+        throw new Error('Escribe la cédula que verificaste por WhatsApp para aplicar el descuento de cumpleaños');
+      }
+
+      const promociones: AppliedPromotion[] = [...otrosDescuentos];
+      if (aplicarDescuentoCumple && descuentoCumpleMonto > 0) {
+        promociones.push({
+          promoId: 'birthday',
+          nombre: `🎂 Descuento de cumpleaños (${BIRTHDAY_DISCOUNT_PERCENT}%, verificado)`,
+          tipo: 'porcentaje',
+          valor: BIRTHDAY_DISCOUNT_PERCENT,
+          descuento: descuentoCumpleMonto,
+        });
+      }
 
       const updateData: any = {
-        cliente: editedOrder.cliente,
+        cliente: {
+          ...editedOrder.cliente,
+          ...(aplicarDescuentoCumple && cedulaVerificada.trim() ? { cedula: cedulaVerificada.trim() } : {}),
+        },
         items: editedOrder.items,
         formaPago: editedOrder.formaPago,
         servicio: editedOrder.servicio,
@@ -132,7 +178,9 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
         notaAdmin: editedOrder.notaAdmin,
         subtotal,
         delivery,
-        total
+        total,
+        promociones: promociones.length > 0 ? promociones : deleteField(),
+        descuentoTotal: descuentoTotal > 0 ? descuentoTotal : deleteField(),
       };
       if (usarPagosMixtos) {
         updateData.detallesPago = detallesPago;
@@ -621,6 +669,44 @@ export default function OrderEditModal({ order, onClose, onSave }: OrderEditModa
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Descuento de cumpleaños (verificación manual) */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-black">
+                  <Cake size={18} /> Descuento de cumpleaños
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  Solo aplícalo si el cliente te envió por WhatsApp una foto de su cédula y el nombre coincide con el del pedido. No se aplica automáticamente.
+                  {isBirthdayToday(order.cliente.fechaNacimiento) && (
+                    <span className="ml-1 font-semibold text-rojo">🎂 Hoy es su cumpleaños según sus datos guardados.</span>
+                  )}
+                </p>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aplicarDescuentoCumple}
+                    onChange={(e) => setAplicarDescuentoCumple(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Aplicar descuento verificado ({BIRTHDAY_DISCOUNT_PERCENT}% sobre {cop(baseSubtotal)} = {cop(Math.round(baseSubtotal * BIRTHDAY_DISCOUNT_PERCENT / 100))})
+                  </span>
+                </label>
+
+                {aplicarDescuentoCumple && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-gray-500">Cédula verificada</label>
+                    <input
+                      type="text"
+                      value={cedulaVerificada}
+                      onChange={(e) => setCedulaVerificada(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Número de cédula que coincide con el nombre del pedido"
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-black focus:border-gray-400 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Totales */}

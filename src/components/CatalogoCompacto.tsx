@@ -76,6 +76,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
         const minPrice = getMinPrice(p);
         const isFlipped = flippedId === p.id;
         const details = getDetailText(p);
+        const disponible = p.disponible !== false;
 
         return (
           <div
@@ -97,7 +98,7 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                 onClick={() => setFlippedId(p.id)}
               >
                 {/* Imagen 4:5 */}
-                <div className="relative w-24 sm:w-36 flex-shrink-0 overflow-hidden bg-gray-100" style={{ aspectRatio: "4/5" }}>
+                <div className={["relative w-32 sm:w-44 md:w-48 flex-shrink-0 overflow-hidden bg-gray-100", !disponible ? "opacity-50" : ""].join(" ")} style={{ aspectRatio: "4/5" }}>
                   {p.image ? (
                     <img
                       src={p.image}
@@ -111,7 +112,13 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                     </div>
                   )}
 
-                  {count > 0 ? (
+                  {!disponible ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-800">
+                        No disponible
+                      </span>
+                    </div>
+                  ) : count > 0 ? (
                     <div className="absolute left-0 top-0 bg-rojo px-2 py-1 text-[11px] font-semibold text-white">
                       x{count}
                     </div>
@@ -124,7 +131,11 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                     {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
                   </span>
                   <h3 className="mt-1 text-base sm:text-lg font-medium text-gray-900 leading-tight">{p.name}</h3>
-                  <p className="mt-1.5 text-sm font-semibold text-gray-900">{getPriceDescription(p)}</p>
+                  {disponible ? (
+                    <p className="mt-1.5 text-sm font-semibold text-gray-900">{getPriceDescription(p)}</p>
+                  ) : (
+                    <p className="mt-1.5 text-sm font-semibold text-gray-400">No disponible por ahora</p>
+                  )}
                   <p className="mt-2 text-[10px] text-gray-400">Toca para ver más</p>
                 </div>
               </div>
@@ -139,12 +150,16 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                 onClick={() => setFlippedId(null)}
               >
                 <div className="flex gap-3 flex-1 min-h-0">
-                  <div className="relative w-20 sm:w-28 flex-shrink-0 overflow-hidden bg-rojo-dark">
+                  <div className="relative w-24 sm:w-32 flex-shrink-0 overflow-hidden bg-rojo-dark">
                     {p.image ? (
                       <img src={p.image} alt={p.name} className="h-full w-full object-cover opacity-40" loading="lazy" />
                     ) : null}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2">
-                      {count === 0 ? (
+                      {!disponible ? (
+                        <span className="w-full border border-white/50 text-white/70 py-1.5 text-[10px] font-medium uppercase tracking-wider text-center">
+                          No disponible
+                        </span>
+                      ) : count === 0 ? (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onAdd(p); }}

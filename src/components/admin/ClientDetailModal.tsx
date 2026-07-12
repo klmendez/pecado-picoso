@@ -1,4 +1,4 @@
-import { X, MapPin, Phone, ShoppingBag, DollarSign, Calendar, Cake, Mail, Pencil, Tag, StickyNote, Trash2, GitMerge, Plus } from 'lucide-react';
+import { X, MapPin, Phone, ShoppingBag, DollarSign, Calendar, Cake, Mail, Pencil, Tag, StickyNote, Trash2, GitMerge, Plus, IdCard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { OrderService } from '../../services/orderService';
 import { ClientService, type FirestoreClient } from '../../services/clientService';
@@ -18,7 +18,7 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
   const [loading, setLoading] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState({ nombres: '', celular: '', fechaNacimiento: '', correo: '', notaAdmin: '' });
+  const [form, setForm] = useState({ nombres: '', celular: '', fechaNacimiento: '', correo: '', cedula: '', notaAdmin: '' });
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,6 +57,7 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
       celular: client.celular,
       fechaNacimiento: client.fechaNacimiento ? `2000-${client.fechaNacimiento}` : '',
       correo: client.correo || '',
+      cedula: client.cedula || '',
       notaAdmin: client.notaAdmin || '',
     });
     setTags(client.etiquetas || []);
@@ -96,6 +97,7 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
         nombres: form.nombres.trim(),
         fechaNacimiento: birthdayKey,
         correo: form.correo.trim() || null,
+        cedula: form.cedula.trim() || null,
         notaAdmin: form.notaAdmin.trim() || null,
         etiquetas: tags,
       });
@@ -176,7 +178,7 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
                     <Phone size={14} />
                     {client.celular}
                   </div>
-                  {(client.fechaNacimiento || client.correo) && (
+                  {(client.fechaNacimiento || client.correo || client.cedula) && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
                       {client.fechaNacimiento && (
                         <span className="flex items-center gap-1">
@@ -188,6 +190,12 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
                         <span className="flex items-center gap-1">
                           <Mail size={12} />
                           {client.correo}
+                        </span>
+                      )}
+                      {client.cedula && (
+                        <span className="flex items-center gap-1">
+                          <IdCard size={12} />
+                          C.C. {client.cedula}
                         </span>
                       )}
                     </div>
@@ -240,6 +248,13 @@ export default function ClientDetailModal({ client, onClose, onChanged }: Client
                       value={form.correo}
                       onChange={(e) => setForm(prev => ({ ...prev, correo: e.target.value }))}
                       placeholder="Correo"
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                    />
+                    <input
+                      value={form.cedula}
+                      onChange={(e) => setForm(prev => ({ ...prev, cedula: e.target.value.replace(/\D/g, '') }))}
+                      inputMode="numeric"
+                      placeholder="Cédula"
                       className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
                     />
                   </div>

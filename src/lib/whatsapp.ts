@@ -3,6 +3,7 @@ import type { Barrio } from "../data/barrios";
 import { cop } from "./format";
 import type { Product, Size, Version } from "../data/products";
 import { isFixedPrice } from "../data/products";
+import { isBirthdayToday } from "./birthday";
 
 export function buildCode() {
   const d = new Date();
@@ -165,6 +166,7 @@ export function buildWhatsAppMessage(args: {
   comments?: string;
   locationLink?: string;
   descuentoTotal?: number;
+  birthdayKey?: string | null;
 }) {
   const {
     origin,
@@ -185,6 +187,7 @@ export function buildWhatsAppMessage(args: {
     comments,
     locationLink,
     descuentoTotal = 0,
+    birthdayKey = null,
   } = args;
 
   const serviceLabel = formatServiceLabel(service);
@@ -241,6 +244,9 @@ export function buildWhatsAppMessage(args: {
     section("🙋 Datos del cliente"),
     `Nombre: *${name}*`,
     `Teléfono: *${phone}*`,
+    isBirthdayToday(birthdayKey)
+      ? `🎂 *¡Hoy es su cumpleaños!* Si te envía por acá una foto de su cédula y el nombre coincide con el del pedido, puedes aplicarle el descuento de cumpleaños desde el pedido.`
+      : null,
   ];
 
   const locationLine = locationLink ? `📍 *Ubicación en tiempo real:* ${locationLink}` : null;

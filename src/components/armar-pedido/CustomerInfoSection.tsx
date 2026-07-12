@@ -252,8 +252,13 @@ export default function CustomerInfoSection({
               className={inputClass(false)}
             />
             {isBirthdayToday(toBirthdayKey(birthday)) && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-rojo font-medium">
-                🎂 ¡Feliz cumpleaños! Tienes un descuento especial en este pedido.
+              <div className="mt-2 rounded-lg border border-rojo/30 bg-rojo-light p-3">
+                <div className="flex items-center gap-1.5 text-[11px] text-rojo font-bold">
+                  🎂 ¡Feliz cumpleaños! Tienes un descuento especial esperándote.
+                </div>
+                <p className="mt-1.5 text-[10px] text-rojo/80">
+                  Para reclamarlo, envíanos por WhatsApp una foto de tu cédula que coincida con el nombre de este pedido. Lo confirmamos por ahí.
+                </p>
               </div>
             )}
           </div>
