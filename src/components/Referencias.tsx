@@ -30,15 +30,17 @@ export default function Referencias({
 
   return (
     <section className="w-full">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{title}</div>
-          <div className="text-[11px] text-gray-500">{subtitle}</div>
+      {title || subtitle ? (
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{title}</div>
+            <div className="text-[11px] text-gray-500">{subtitle}</div>
+          </div>
+          {value ? (
+            <span className="text-[10px] text-rojo">✓</span>
+          ) : null}
         </div>
-        {value ? (
-          <span className="text-[10px] text-rojo">✓</span>
-        ) : null}
-      </div>
+      ) : null}
 
       <div className="mt-2 flex gap-4 justify-center">
         {items.map((item) => {

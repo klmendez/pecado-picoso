@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, MapPin, Clock, AlertCircle, CheckCircle, MessageCircle } from 'lucide-react';
 import { OrderService } from '../services/orderService';
+import { PromotionService } from '../services/promotionService';
 import { ClientService } from '../services/clientService';
 import { LocationService } from '../services/locationService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
@@ -33,6 +34,12 @@ interface CartDrawerProps {
   onClearCart: () => void;
   descuentoTotal?: number;
   appliedPromotions?: AppliedPromotion[];
+  couponInput?: string;
+  onCouponInputChange?: (value: string) => void;
+  onApplyCoupon?: () => void;
+  onRemoveCoupon?: () => void;
+  appliedCouponCode?: string | null;
+  couponError?: string | null;
 }
 
 export default function CartDrawer({
@@ -56,6 +63,12 @@ export default function CartDrawer({
   onClearCart,
   descuentoTotal = 0,
   appliedPromotions = [],
+  couponInput = '',
+  onCouponInputChange,
+  onApplyCoupon,
+  onRemoveCoupon,
+  appliedCouponCode = null,
+  couponError = null,
 }: CartDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -221,6 +234,13 @@ export default function CartDrawer({
       const orderId = await OrderService.createOrder(orderData);
       setCreatedOrderId(orderId);
       setSubmitStatus('success');
+
+      // Contar el uso de cada promoción/cupón aplicado
+      appliedPromotions.forEach((promo) => {
+        PromotionService.incrementUsage(promo.promoId).catch((err) =>
+          console.error('Error incrementando uso de promoción:', err)
+        );
+      });
       
       // Iniciar seguimiento de ubicación si está disponible
       if (currentLocation && service === 'domicilio') {
@@ -327,6 +347,49 @@ export default function CartDrawer({
                   <span>Envío</span>
                   <span>{cop(delivery)}</span>
                 </div>
+
+                {onApplyCoupon ? (
+                  appliedCouponCode ? (
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-xs">
+                      <span className="text-green-700 font-semibold truncate">
+                        Cupón <span className="font-mono">{appliedCouponCode}</span> aplicado
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onRemoveCoupon}
+                        className="text-green-700 underline underline-offset-2 shrink-0"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="flex gap-2">
+                        <input
+                          value={couponInput}
+                          onChange={(e) => onCouponInputChange?.(e.target.value.toUpperCase())}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              onApplyCoupon();
+                            }
+                          }}
+                          placeholder="Código de cupón"
+                          className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-black"
+                        />
+                        <button
+                          type="button"
+                          onClick={onApplyCoupon}
+                          className="rounded-lg border border-black px-3 py-2 text-xs font-semibold hover:bg-black hover:text-white transition-colors shrink-0"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                      {couponError && <div className="text-xs text-rojo">{couponError}</div>}
+                    </div>
+                  )
+                ) : null}
+
                 {appliedPromotions.map((promo, i) => (
                   <div key={i} className="flex justify-between text-rojo font-medium">
                     <span>{promo.nombre}</span>

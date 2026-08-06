@@ -21,6 +21,12 @@ type Props = {
   sendDisabledHint: string;
   descuentoTotal?: number;
   appliedPromotions?: AppliedPromotion[];
+  couponInput?: string;
+  onCouponInputChange?: (value: string) => void;
+  onApplyCoupon?: () => void;
+  onRemoveCoupon?: () => void;
+  appliedCouponCode?: string | null;
+  couponError?: string | null;
 };
 
 export default function OrderPricingSidebar({
@@ -34,6 +40,12 @@ export default function OrderPricingSidebar({
   sendDisabledHint,
   descuentoTotal = 0,
   appliedPromotions = [],
+  couponInput = "",
+  onCouponInputChange,
+  onApplyCoupon,
+  onRemoveCoupon,
+  appliedCouponCode = null,
+  couponError = null,
 }: Props) {
   return (
     <aside className="lg:sticky lg:top-24 h-fit">
@@ -123,6 +135,49 @@ export default function OrderPricingSidebar({
             <span>Envío</span>
             <span>{cop(delivery)}</span>
           </div>
+
+          {onApplyCoupon ? (
+            appliedCouponCode ? (
+              <div className="flex items-center justify-between gap-2 rounded bg-green-50 border border-green-200 px-3 py-2 text-xs">
+                <span className="text-green-700 font-semibold truncate">
+                  Cupón <span className="font-mono">{appliedCouponCode}</span> aplicado
+                </span>
+                <button
+                  type="button"
+                  onClick={onRemoveCoupon}
+                  className="text-green-700 underline underline-offset-2 shrink-0"
+                >
+                  Quitar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex gap-2">
+                  <input
+                    value={couponInput}
+                    onChange={(e) => onCouponInputChange?.(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        onApplyCoupon();
+                      }
+                    }}
+                    placeholder="Código de cupón"
+                    className="flex-1 min-w-0 border border-gray-300 px-3 py-2 text-sm font-mono uppercase outline-none focus:border-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={onApplyCoupon}
+                    className="border border-black px-3 py-2 text-xs font-semibold hover:bg-black hover:text-white transition-colors shrink-0"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+                {couponError && <div className="text-xs text-rojo">{couponError}</div>}
+              </div>
+            )
+          ) : null}
+
           {descuentoTotal > 0 && (
             <>
               {appliedPromotions.map((p, i) => (

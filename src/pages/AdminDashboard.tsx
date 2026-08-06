@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Eye, EyeOff, Edit, Trash2, MapPin, Phone, Clock, Plus, Filter, ArrowUp, ArrowDown, Download, UserPlus, X as XIcon
 } from 'lucide-react';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, deleteField } from 'firebase/firestore';
 import { OrderService } from '../services/orderService';
 import { ProductService, type FirestoreProduct } from '../services/productService';
 import { ClientService, type FirestoreClient } from '../services/clientService';
@@ -120,6 +120,8 @@ export default function AdminDashboard() {
     valor: '',
     productosIds: '' as string,
     cantidadMinima: '',
+    codigo: '',
+    usosMaximos: '',
     activa: true,
     fechaInicio: '',
     fechaFin: '',
@@ -156,13 +158,27 @@ export default function AdminDashboard() {
       if (promoForm.fechaInicio) data.fechaInicio = Timestamp.fromDate(new Date(promoForm.fechaInicio));
       if (promoForm.fechaFin) data.fechaFin = Timestamp.fromDate(new Date(promoForm.fechaFin));
 
+      const codigoTrim = promoForm.codigo.trim().toUpperCase();
+      if (codigoTrim) {
+        data.codigo = codigoTrim;
+      } else if (editingPromoId) {
+        data.codigo = deleteField();
+      }
+
+      if (promoForm.usosMaximos) {
+        data.usosMaximos = Number(promoForm.usosMaximos);
+      } else if (editingPromoId) {
+        data.usosMaximos = deleteField();
+      }
+
       if (editingPromoId) {
         await PromotionService.updatePromotion(editingPromoId, data);
         setEditingPromoId(null);
       } else {
+        data.usosActuales = 0;
         await PromotionService.addPromotion(data);
       }
-      setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', activa: true, fechaInicio: '', fechaFin: '' });
+      setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', codigo: '', usosMaximos: '', activa: true, fechaInicio: '', fechaFin: '' });
       await loadPromos();
     } catch (err: any) {
       setPromoError(err.message || 'Error al guardar');
@@ -178,6 +194,8 @@ export default function AdminDashboard() {
       valor: String(p.valor),
       productosIds: (p.productosIds || []).join(', '),
       cantidadMinima: p.cantidadMinima ? String(p.cantidadMinima) : '',
+      codigo: p.codigo || '',
+      usosMaximos: p.usosMaximos ? String(p.usosMaximos) : '',
       activa: p.activa,
       fechaInicio: p.fechaInicio?.toDate ? p.fechaInicio.toDate().toISOString().slice(0, 16) : '',
       fechaFin: p.fechaFin?.toDate ? p.fechaFin.toDate().toISOString().slice(0, 16) : '',
@@ -1782,6 +1800,36 @@ export default function AdminDashboard() {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Código de cupón (opcional)</label>
+                  <input
+                    value={promoForm.codigo}
+                    onChange={e => setPromoForm({ ...promoForm, codigo: e.target.value.toUpperCase() })}
+                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono uppercase outline-none focus:border-gray-400"
+                    placeholder="Ej: PECADO10"
+                  />
+                  <div className="mt-1 text-xs text-gray-400">
+                    Si dejas esto vacío, el descuento se aplica automáticamente a los productos elegidos.
+                    Si pones un código, el cliente debe escribirlo para activar el descuento.
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Límite de usos (opcional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={promoForm.usosMaximos}
+                    onChange={e => setPromoForm({ ...promoForm, usosMaximos: e.target.value })}
+                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    placeholder="Ej: 10"
+                  />
+                  <div className="mt-1 text-xs text-gray-400">
+                    Cuántos clientes en total pueden usar esta promoción. Vacío = sin límite.
+                    {editingPromoId ? ` Usos hasta ahora: ${promos.find(p => p.id === editingPromoId)?.usosActuales ?? 0}.` : ''}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Descripción (opcional)</label>
                   <input
                     value={promoForm.descripcion}
@@ -1872,7 +1920,7 @@ export default function AdminDashboard() {
                       type="button"
                       onClick={() => {
                         setEditingPromoId(null);
-                        setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', activa: true, fechaInicio: '', fechaFin: '' });
+                        setPromoForm({ nombre: '', descripcion: '', tipo: 'porcentaje', valor: '', productosIds: '', cantidadMinima: '', codigo: '', usosMaximos: '', activa: true, fechaInicio: '', fechaFin: '' });
                       }}
                       className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition rounded"
                     >
@@ -1899,6 +1947,8 @@ export default function AdminDashboard() {
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Tipo</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Valor</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Productos</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Código</th>
+                        <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Usos</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Estado</th>
                         <th className="px-4 py-3 text-left font-semibold text-xs text-gray-600 uppercase tracking-wide">Acciones</th>
                       </tr>
@@ -1920,6 +1970,22 @@ export default function AdminDashboard() {
                             {p.productosIds?.length
                               ? p.productosIds.map(id => products.find(prod => prod.id === id)?.name || id).join(', ')
                               : 'Todos'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {p.codigo ? (
+                              <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-blue-50 text-blue-700">{p.codigo}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Automática</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {p.usosMaximos ? (
+                              <span className={(p.usosActuales ?? 0) >= p.usosMaximos ? 'font-bold text-red-600' : 'text-gray-600'}>
+                                {p.usosActuales ?? 0} / {p.usosMaximos}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Ilimitado</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <button

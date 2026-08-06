@@ -5,6 +5,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  increment,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -52,5 +53,10 @@ export class PromotionService {
 
   static async deletePromotion(id: string): Promise<void> {
     await deleteDoc(doc(db, PROMOS_COLLECTION, id));
+  }
+
+  static async incrementUsage(id: string): Promise<void> {
+    const ref = doc(db, PROMOS_COLLECTION, id);
+    await updateDoc(ref, { usosActuales: increment(1) });
   }
 }

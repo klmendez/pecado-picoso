@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { EXTRAS } from "../../data/extras";
 import type { OrderItem } from "../../lib/whatsapp";
@@ -9,22 +9,50 @@ import Referencias from "../Referencias";
 import Toppings from "../Toppings";
 import { getAvailableSizes, maxToppingsFor, labelSize, toppingsNames, extrasLine } from "./utils";
 
-export function getItemMissing(item: OrderItem): string | null {
+type MissingSection = "referencia" | "toppings" | "extras";
+
+export function getItemMissingSection(item: OrderItem): { section: MissingSection; message: string } | null {
   const product = item.product;
   const max = maxToppingsFor(product);
 
   if (product.category === "gomitas") {
-    if (!item.version) return "Elige una referencia (ahogada o picosa)";
-    if (max > 0 && item.toppingIds.length < 1) return "Elige al menos 1 topping";
-    if (max > 0 && item.toppingIds.length > max) return `Máximo ${max} toppings`;
+    if (!item.version) return { section: "referencia", message: "Falta que elijas ahogada o picosa" };
+    if (max > 0 && item.toppingIds.length < 1) return { section: "toppings", message: "Falta que elijas al menos 1 topping" };
+    if (max > 0 && item.toppingIds.length > max) return { section: "toppings", message: `Máximo ${max} toppings, quita alguno` };
     const gomitasExtrasQty = item.extrasQty?.gomitas ?? 0;
     if (gomitasExtrasQty > 0) {
       const selections = item.extraSelections?.gomitas ?? [];
-      if (selections.length < gomitasExtrasQty) return `Selecciona ${gomitasExtrasQty} gomita(s) extra`;
+      if (selections.length < gomitasExtrasQty) {
+        return { section: "extras", message: `Falta que elijas ${gomitasExtrasQty} gomita(s) extra` };
+      }
     }
   }
 
   return null;
+}
+
+export function getItemMissing(item: OrderItem): string | null {
+  return getItemMissingSection(item)?.message ?? null;
+}
+
+function StepHeader({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+        {n}
+      </span>
+      <span className="text-base sm:text-lg font-bold text-gray-900 leading-tight">{children}</span>
+    </div>
+  );
+}
+
+function MissingHint({ message }: { message: string }) {
+  return (
+    <div className="mt-2 ml-9 flex items-center gap-1.5 rounded bg-rojo-light px-2.5 py-1.5 text-[12px] font-semibold text-rojo">
+      <span aria-hidden>⚠</span>
+      <span>{message}</span>
+    </div>
+  );
 }
 
 type Props = {
@@ -35,6 +63,7 @@ type Props = {
   activeProductId?: string | null;
   onFocusProduct?: (itemId: string | null) => void;
   onGoToNext?: () => void;
+  onAddAnotherProduct?: () => void;
   showIncompleteWarning?: boolean;
   disabledToppingIds?: string[];
 };
@@ -79,17 +108,55 @@ export default function ProductConfigSection({
   activeProductId,
   onFocusProduct,
   onGoToNext,
+  onAddAnotherProduct,
   showIncompleteWarning = false,
   disabledToppingIds = [],
 }: Props) {
   if (!items.length) return null;
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const prevActiveIdRef = useRef<string | null>(null);
+  const [attemptedItemId, setAttemptedItemId] = useState<string | null>(null);
 
   const allComplete = items.every(isItemConfigComplete);
   const showSummary = allComplete && !activeProductId;
 
+  const registerSectionRef = (itemId: string, section: MissingSection) => (node: HTMLDivElement | null) => {
+    const key = `${itemId}:${section}`;
+    if (node) sectionRefs.current[key] = node;
+    else delete sectionRefs.current[key];
+  };
+
+  const scrollToSection = (itemId: string, section: MissingSection, delay: number) => {
+    window.setTimeout(() => {
+      const el = sectionRefs.current[`${itemId}:${section}`];
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    }, delay);
+  };
+
+  const attemptCompleteItem = (item: OrderItem) => {
+    if (isItemConfigComplete(item)) {
+      setAttemptedItemId(null);
+      onFocusProduct?.(null);
+      return;
+    }
+    setAttemptedItemId(item.id);
+    const missingInfo = getItemMissingSection(item);
+    if (missingInfo) scrollToSection(item.id, missingInfo.section, 50);
+  };
+
+  useEffect(() => {
+    if (!showIncompleteWarning || !activeProductId) return;
+    const activeItem = items.find((it) => it.id === activeProductId);
+    if (!activeItem || isItemConfigComplete(activeItem)) return;
+
+    setAttemptedItemId(activeItem.id);
+    const missingInfo = getItemMissingSection(activeItem);
+    if (missingInfo) scrollToSection(activeItem.id, missingInfo.section, 250);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showIncompleteWarning, activeProductId]);
 
   useEffect(() => {
     if (!activeProductId) {
@@ -118,6 +185,20 @@ export default function ProductConfigSection({
     return () => window.clearTimeout(timeout);
   }, [activeProductId]);
 
+  const summaryTopRef = useRef<HTMLDivElement | null>(null);
+  const prevShowSummaryRef = useRef(false);
+
+  useEffect(() => {
+    if (showSummary && !prevShowSummaryRef.current) {
+      const timeout = window.setTimeout(() => {
+        summaryTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+      }, 60);
+      prevShowSummaryRef.current = true;
+      return () => window.clearTimeout(timeout);
+    }
+    prevShowSummaryRef.current = showSummary;
+  }, [showSummary]);
+
   return (
     <section>
       <div className="hidden sm:block">
@@ -128,7 +209,7 @@ export default function ProductConfigSection({
       </div>
 
       {showSummary ? (
-        <div className="sm:mt-5">
+        <div ref={summaryTopRef} className="scroll-mt-24 sm:mt-5">
           <div className="text-xs font-medium text-rojo mb-3">✓ Todo listo</div>
 
           <div className="divide-y divide-gray-100">
@@ -150,7 +231,12 @@ export default function ProductConfigSection({
               const itemTotal = (baseUnit + extrasU) * it.qty;
 
               return (
-                <div key={it.id} className="py-3 flex items-start justify-between gap-3">
+                <div key={it.id} className="py-3 flex items-start gap-3">
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-gray-100">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                    ) : null}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-gray-900">{p.name}</span>
@@ -170,7 +256,7 @@ export default function ProductConfigSection({
                   <button
                     type="button"
                     onClick={() => onFocusProduct?.(it.id)}
-                    className="border border-rojo bg-white text-rojo hover:bg-rojo hover:text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition"
+                    className="shrink-0 border border-rojo bg-white text-rojo hover:bg-rojo hover:text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition"
                   >
                     Editar
                   </button>
@@ -179,13 +265,22 @@ export default function ProductConfigSection({
             })}
           </div>
 
-          <button
-            type="button"
-            onClick={onGoToNext}
-            className="mt-4 w-full border border-rojo bg-rojo text-white py-3 text-xs font-medium uppercase tracking-[0.15em] active:bg-rojo-dark sm:w-auto sm:px-8"
-          >
-            Datos y envío →
-          </button>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onAddAnotherProduct}
+              className="w-full border border-gray-300 text-gray-700 py-3 text-xs font-medium uppercase tracking-[0.15em] hover:border-gray-400 active:bg-gray-50 sm:w-auto sm:px-6"
+            >
+              + Agregar otro producto
+            </button>
+            <button
+              type="button"
+              onClick={onGoToNext}
+              className="w-full border border-rojo bg-rojo text-white py-3 text-xs font-medium uppercase tracking-[0.15em] active:bg-rojo-dark sm:w-auto sm:px-8"
+            >
+              Completar datos →
+            </button>
+          </div>
         </div>
       ) : (
         <div className="sm:mt-5 divide-y divide-gray-200">
@@ -201,8 +296,15 @@ export default function ProductConfigSection({
 
             const isActive = activeProductId === it.id;
             const isComplete = isItemConfigComplete(it);
-            const missing = isComplete ? null : getItemMissing(it);
+            const missingInfo = isComplete ? null : getItemMissingSection(it);
             const summary = buildSummaryLine(it);
+            const showAttemptedHint = attemptedItemId === it.id && !isComplete;
+
+            let stepCounter = 0;
+            const sizeStepNum = sizes.length ? ++stepCounter : 0;
+            const referenciaStepNum = isGomitas ? ++stepCounter : 0;
+            const toppingsStepNum = showToppings ? ++stepCounter : 0;
+            const extrasStepNum = ++stepCounter;
 
             const sameProductItems = items.filter((i) => i.product.id === p.id);
             const instanceNumber = sameProductItems.findIndex((i) => i.id === it.id) + 1;
@@ -254,7 +356,7 @@ export default function ProductConfigSection({
                         {isComplete ? (
                           <span className="text-gray-400">{summary}</span>
                         ) : showIncompleteWarning ? (
-                          <span className="text-rojo">{missing ?? "Falta personalizar"}</span>
+                          <span className="text-rojo">{missingInfo?.message ?? "Falta personalizar"}</span>
                         ) : (
                           <span className="text-gray-400">Toca para personalizar</span>
                         )}
@@ -294,18 +396,29 @@ export default function ProductConfigSection({
                 </div>
 
                 {isActive ? (
-                  <div className="mt-3 ml-5 space-y-4">
-                    <div>
-                      <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Tamaño</div>
-                      {sizes.length ? (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <div className="mt-4 space-y-6">
+                    {/* Imagen grande del producto */}
+                    <div className="mx-auto w-full max-w-[240px] sm:mx-0 sm:max-w-[280px]">
+                      <div className="relative w-full overflow-hidden rounded-lg bg-gray-100" style={{ aspectRatio: "4/5" }}>
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 grid place-items-center text-xs text-gray-400">Sin imagen</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {sizes.length ? (
+                      <div>
+                        <StepHeader n={sizeStepNum}>Elige el tamaño</StepHeader>
+                        <div className="mt-2 ml-9 flex flex-wrap gap-1.5">
                           {sizes.map((s) => (
                             <button
                               key={s}
                               type="button"
                               onClick={() => { focusProduct(); updateItem(it.id, { size: s }); }}
                               className={[
-                                "border px-3 py-1 text-[11px] font-medium transition",
+                                "border px-3 py-1.5 text-[12px] font-medium transition",
                                 it.size === s
                                   ? "border-rojo bg-rojo text-white"
                                   : "border-gray-200 text-gray-500 hover:border-gray-400",
@@ -315,34 +428,55 @@ export default function ProductConfigSection({
                             </button>
                           ))}
                         </div>
-                      ) : (
-                        <div className="mt-1 text-[11px] text-gray-400">No aplica.</div>
-                      )}
-                    </div>
+                      </div>
+                    ) : null}
 
                     {isGomitas ? (
-                      <Referencias
-                        value={it.version ?? null}
-                        onChange={(v) => { focusProduct(); updateItem(it.id, { version: v }); }}
-                      />
+                      <div ref={registerSectionRef(it.id, "referencia")} className="scroll-mt-28">
+                        <StepHeader n={referenciaStepNum}>¿Ahogada o picosa?</StepHeader>
+                        {showAttemptedHint && missingInfo?.section === "referencia" ? (
+                          <MissingHint message={missingInfo.message} />
+                        ) : null}
+                        <div className="mt-2 ml-9">
+                          <Referencias
+                            value={it.version ?? null}
+                            onChange={(v) => { focusProduct(); updateItem(it.id, { version: v }); }}
+                            title=""
+                            subtitle=""
+                          />
+                        </div>
+                      </div>
                     ) : null}
 
                     {showToppings ? (
-                      <Toppings
-                        value={it.toppingIds}
-                        onChange={(next) => { focusProduct(); updateItem(it.id, { toppingIds: next }); }}
-                        max={maxT}
-                        min={isGomitas && maxT > 0 ? 1 : 0}
-                        small
-                        title="Toppings"
-                        subtitle={isGomitas ? "Selecciona (mínimo 1)" : `Opcional (hasta ${maxT})`}
-                        disabledIds={disabledToppingIds}
-                      />
+                      <div ref={registerSectionRef(it.id, "toppings")} className="scroll-mt-28">
+                        <StepHeader n={toppingsStepNum}>
+                          {isGomitas ? "Elige tus toppings (mínimo 1)" : `Elige tus toppings (opcional, hasta ${maxT})`}
+                        </StepHeader>
+                        {showAttemptedHint && missingInfo?.section === "toppings" ? (
+                          <MissingHint message={missingInfo.message} />
+                        ) : null}
+                        <div className="mt-2 ml-9">
+                          <Toppings
+                            value={it.toppingIds}
+                            onChange={(next) => { focusProduct(); updateItem(it.id, { toppingIds: next }); }}
+                            max={maxT}
+                            min={isGomitas && maxT > 0 ? 1 : 0}
+                            small
+                            title=""
+                            subtitle=""
+                            disabledIds={disabledToppingIds}
+                          />
+                        </div>
+                      </div>
                     ) : null}
 
-                    <div>
-                      <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Extras</div>
-                      <div className="mt-2 space-y-2">
+                    <div ref={registerSectionRef(it.id, "extras")} className="scroll-mt-28">
+                      <StepHeader n={extrasStepNum}>Extras (opcional)</StepHeader>
+                      {showAttemptedHint && missingInfo?.section === "extras" ? (
+                        <MissingHint message={missingInfo.message} />
+                      ) : null}
+                      <div className="mt-2 ml-9 space-y-2">
                         {EXTRAS.map((extra) => {
                           const qty = extrasQty[extra.id] ?? 0;
                           const currentSelections = extraSelections[extra.id] ?? [];
@@ -424,7 +558,7 @@ export default function ProductConfigSection({
                     <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
                       <button
                         type="button"
-                        onClick={() => onFocusProduct?.(null)}
+                        onClick={() => { setAttemptedItemId(null); onFocusProduct?.(null); }}
                         className="border border-gray-200 px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-gray-500 hover:border-gray-400"
                       >
                         Cerrar
@@ -432,16 +566,12 @@ export default function ProductConfigSection({
 
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!isComplete) return;
-                          onFocusProduct?.(null);
-                        }}
-                        disabled={!isComplete}
+                        onClick={() => attemptCompleteItem(it)}
                         className={[
-                          "border px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em]",
+                          "border px-4 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] transition",
                           isComplete
                             ? "border-rojo bg-rojo text-white active:bg-rojo-dark"
-                            : "border-gray-200 text-gray-300 cursor-not-allowed",
+                            : "border-gray-300 text-gray-500 hover:border-rojo hover:text-rojo",
                         ].join(" ")}
                       >
                         Listo

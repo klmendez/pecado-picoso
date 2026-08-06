@@ -66,8 +66,38 @@ export default function ArmarPedido() {
   const { promotions } = usePromotions();
   const { disabledToppingIds } = useToppingAvailability();
 
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  const handleApplyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    const match = promotions.find(
+      (p) => p.activa && p.codigo && p.codigo.trim().toUpperCase() === code
+    );
+    if (!match) {
+      setAppliedCouponCode(null);
+      setCouponError("Cupón inválido o inactivo");
+      return;
+    }
+    if (match.usosMaximos != null && (match.usosActuales ?? 0) >= match.usosMaximos) {
+      setAppliedCouponCode(null);
+      setCouponError("Este cupón ha caducado");
+      return;
+    }
+    setAppliedCouponCode(code);
+    setCouponError(null);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCouponCode(null);
+    setCouponInput("");
+    setCouponError(null);
+  };
+
   const { pricedItems, subtotal, delivery, total, descuentoTotal, appliedPromotions, canSend, sendDisabledHint, validation } =
-    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions });
+    useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions, appliedCouponCode });
 
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -149,7 +179,9 @@ export default function ArmarPedido() {
 
   const handleAddProduct = (product: Product) => {
     manualProductCloseRef.current = false;
-    addProduct(product);
+    const newItemId = addProduct(product);
+    setActiveProductId(newItemId);
+    setStepIndex(1);
   };
 
   const handleRemoveItem = (itemId: string) => {
@@ -355,7 +387,7 @@ export default function ArmarPedido() {
         next: {
           label: "Ver resumen",
           onClick: goToNextStep,
-          disabled: !canAdvanceFromStep("datos"),
+          disabled: false,
         },
       };
     }
@@ -409,6 +441,7 @@ export default function ArmarPedido() {
         activeProductId={activeProductId}
         onFocusProduct={handleFocusProduct}
         onGoToNext={goToNextStep}
+        onAddAnotherProduct={() => setStepIndex(0)}
         showIncompleteWarning={showConfigWarning}
         disabledToppingIds={disabledToppingIds}
       />
@@ -470,6 +503,7 @@ export default function ArmarPedido() {
         errors={customerErrors}
         focusRequest={focusRequest}
         onFocusRequestConsumed={consumeFocusRequest}
+        onComplete={goToNextStep}
         location={customerLocation}
         onLocationChange={setCustomerLocation}
       />
@@ -516,7 +550,6 @@ export default function ArmarPedido() {
         <button
           type="button"
           onClick={goToNextStep}
-          disabled={!canAdvanceFromStep("datos")}
           className={[
             "border border-gray-300 px-6 py-2 text-sm font-semibold transition",
             canAdvanceFromStep("datos") ? "text-black hover:border-black" : "text-gray-300 cursor-not-allowed",
@@ -541,6 +574,12 @@ export default function ArmarPedido() {
         sendDisabledHint={sendDisabledHint}
         descuentoTotal={descuentoTotal}
         appliedPromotions={appliedPromotions}
+        couponInput={couponInput}
+        onCouponInputChange={setCouponInput}
+        onApplyCoupon={handleApplyCoupon}
+        onRemoveCoupon={handleRemoveCoupon}
+        appliedCouponCode={appliedCouponCode}
+        couponError={couponError}
       />
 
       <div className="hidden sm:flex sm:items-center sm:justify-between">
@@ -573,7 +612,7 @@ export default function ArmarPedido() {
   const mobileDetailMode = isMobile;
 
   const desktopOrCatalogLayout = (
-    <div className="bg-crema text-neutral-900 pt-[56px] sm:pt-20 lg:pt-24">
+    <div className="bg-crema text-neutral-900 pt-0 sm:pt-20 lg:pt-24">
       <ArmarPedidoHeader selectedCount={items.length} />
 
       <div ref={scrollAnchorRef} className="mx-auto max-w-5xl px-4 pb-20 sm:pb-16">
@@ -587,20 +626,22 @@ export default function ArmarPedido() {
   );
 
   const mobileDetailLayout = (
-    <div className="bg-crema text-neutral-900 min-h-dvh flex flex-col pt-[56px]">
+    <div className="bg-crema text-neutral-900 min-h-dvh flex flex-col">
       <div className="fixed left-0 right-0 top-[56px] z-40 flex items-center justify-between gap-3 border-b border-gray-100 bg-crema/95 px-4 py-1.5 backdrop-blur sm:hidden">
         <button
           type="button"
           onClick={footerCTA.back.onClick}
           disabled={footerCTA.back.disabled}
-          className="inline-flex items-center gap-1.5 text-sm font-bold active:opacity-70 disabled:text-gray-300"
-          style={{ color: footerCTA.back.disabled ? undefined : '#D64045' }}
+          className={[
+            "inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-bold transition active:opacity-70",
+            footerCTA.back.disabled ? "text-gray-300" : "bg-rojo text-white",
+          ].join(" ")}
         >
           <span aria-hidden>←</span>
           {footerCTA.back.label}
         </button>
 
-        <div className="text-xs font-bold uppercase tracking-[0.2em] text-gray-900">
+        <div className="bg-rojo-light px-2.5 py-1 text-xs font-bold uppercase tracking-[0.2em] text-rojo">
           {STEP_META[currentStepId].title}
         </div>
 
@@ -608,15 +649,17 @@ export default function ArmarPedido() {
           type="button"
           onClick={footerCTA.next.onClick}
           disabled={footerCTA.next.disabled}
-          className="inline-flex items-center gap-1.5 text-sm font-bold active:opacity-70 disabled:text-gray-300"
-          style={{ color: footerCTA.next.disabled ? undefined : '#D64045' }}
+          className={[
+            "inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-bold transition active:opacity-70",
+            footerCTA.next.disabled ? "text-gray-300" : "bg-rojo text-white",
+          ].join(" ")}
         >
           {footerCTA.next.label}
           <span aria-hidden>→</span>
         </button>
       </div>
 
-      <div className="flex-1 px-4 pt-[36px]">
+      <div className="flex-1 px-4 pt-[42px]">
         {stepContent}
       </div>
 
@@ -677,6 +720,12 @@ export default function ArmarPedido() {
         total={total}
         descuentoTotal={descuentoTotal}
         appliedPromotions={appliedPromotions}
+        couponInput={couponInput}
+        onCouponInputChange={setCouponInput}
+        onApplyCoupon={handleApplyCoupon}
+        onRemoveCoupon={handleRemoveCoupon}
+        appliedCouponCode={appliedCouponCode}
+        couponError={couponError}
         name={name}
         phone={phone}
         birthday={birthday}

@@ -29,6 +29,9 @@ type Params = {
   name: string;
   phone: string;
   promotions?: (Promotion & { id: string })[];
+  // Código de cupón ya validado por el cliente. Las promociones que tengan
+  // un código propio solo se aplican si coincide con este valor.
+  appliedCouponCode?: string | null;
 };
 
 export type ItemDiscount = { nombre: string; descuento: number };
@@ -56,7 +59,7 @@ type Result = {
   sendDisabledHint: string;
 };
 
-export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [] }: Params): Result {
+export function useOrderPricingValidation({ items, service, barrio, address, name, phone, promotions = [], appliedCouponCode = null }: Params): Result {
   const pricedItemsBase = useMemo(() => {
     return items.map((it) => {
       const baseUnit = getBasePrice(
@@ -80,18 +83,24 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
       return { descuentoTotal: 0, appliedPromotions: [] as AppliedPromotion[], itemDiscounts: {} as Record<string, ItemDiscount[]> };
     }
 
-    const applied: AppliedPromotion[] = [];
-    let totalDiscount = 0;
-    const itemDiscounts: Record<string, ItemDiscount[]> = {};
-
-    const addItemDiscount = (itemId: string, nombre: string, monto: number) => {
-      if (monto <= 0) return;
-      if (!itemDiscounts[itemId]) itemDiscounts[itemId] = [];
-      itemDiscounts[itemId].push({ nombre, descuento: monto });
+    // Los descuentos no son acumulables: como máximo una promoción se aplica
+    // por pedido. Entre todas las promociones elegibles se elige la que le
+    // da mayor ahorro al cliente.
+    type Candidate = {
+      applied: AppliedPromotion;
+      itemDiscounts: { itemId: string; nombre: string; monto: number }[];
     };
+    const candidates: Candidate[] = [];
 
     for (const promo of promotions) {
       if (!promo.activa) continue;
+      // Las promociones con código son cupones: solo aplican si el cliente
+      // ingresó y validó ese código exacto.
+      if (promo.codigo) {
+        if (!appliedCouponCode || promo.codigo.trim().toUpperCase() !== appliedCouponCode.trim().toUpperCase()) continue;
+      }
+      // Si la promoción tiene un límite de usos y ya se alcanzó, no se aplica.
+      if (promo.usosMaximos != null && (promo.usosActuales ?? 0) >= promo.usosMaximos) continue;
       const targetItems = promo.productosIds?.length
         ? pricedItemsBase.filter(it => promo.productosIds.includes(it.product.id))
         : pricedItemsBase;
@@ -105,12 +114,14 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
 
       // Las promociones aplican solo al precio base del producto, no a los extras.
       let discount = 0;
+      const candidateItemDiscounts: { itemId: string; nombre: string; monto: number }[] = [];
       if (promo.tipo === 'porcentaje') {
         const itemsSubtotal = targetItems.reduce((s, it) => s + it.baseLine, 0);
         discount = Math.round(itemsSubtotal * promo.valor / 100);
         if (discount > 0) {
           for (const it of targetItems) {
-            addItemDiscount(it.id, `🔥 ${promo.nombre}`, Math.round(it.baseLine * promo.valor / 100));
+            const monto = Math.round(it.baseLine * promo.valor / 100);
+            if (monto > 0) candidateItemDiscounts.push({ itemId: it.id, nombre: `🔥 ${promo.nombre}`, monto });
           }
         }
       } else if (promo.tipo === 'valor_fijo') {
@@ -123,25 +134,41 @@ export function useOrderPricingValidation({ items, service, barrio, address, nam
           if (freeItems > 0) {
             const itemDiscount = it.baseUnit * freeItems;
             discount += itemDiscount;
-            addItemDiscount(it.id, `🔥 ${promo.nombre}`, itemDiscount);
+            candidateItemDiscounts.push({ itemId: it.id, nombre: `🔥 ${promo.nombre}`, monto: itemDiscount });
           }
         }
       }
 
       if (discount > 0) {
-        totalDiscount += discount;
-        applied.push({
-          promoId: promo.id,
-          nombre: promo.nombre,
-          tipo: promo.tipo,
-          valor: promo.valor,
-          descuento: discount,
+        candidates.push({
+          applied: {
+            promoId: promo.id,
+            nombre: promo.nombre,
+            tipo: promo.tipo,
+            valor: promo.valor,
+            descuento: discount,
+          },
+          itemDiscounts: candidateItemDiscounts,
         });
       }
     }
 
-    return { descuentoTotal: totalDiscount, appliedPromotions: applied, itemDiscounts };
-  }, [pricedItemsBase, promotions]);
+    const winner = candidates.sort((a, b) => b.applied.descuento - a.applied.descuento)[0];
+
+    const itemDiscounts: Record<string, ItemDiscount[]> = {};
+    if (winner) {
+      for (const { itemId, nombre, monto } of winner.itemDiscounts) {
+        if (!itemDiscounts[itemId]) itemDiscounts[itemId] = [];
+        itemDiscounts[itemId].push({ nombre, descuento: monto });
+      }
+    }
+
+    return {
+      descuentoTotal: winner ? winner.applied.descuento : 0,
+      appliedPromotions: winner ? [winner.applied] : [],
+      itemDiscounts,
+    };
+  }, [pricedItemsBase, promotions, appliedCouponCode]);
 
   const pricedItems = useMemo<PricedOrderItem[]>(() => {
     return pricedItemsBase.map((it) => ({ ...it, discounts: itemDiscounts[it.id] || [] }));

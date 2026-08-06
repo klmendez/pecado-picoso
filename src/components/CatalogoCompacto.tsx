@@ -1,25 +1,6 @@
-import { useState } from "react";
 import type { Product, Size } from "../data/products";
 import { cop } from "../lib/format";
 import type { CategoryTabValue } from "./CategoryTabs";
-
-function getMinPrice(product: Product): number | null {
-  if (product.category === "gomitas") {
-    const all = [
-      ...Object.values(product.prices.ahogada),
-      ...Object.values(product.prices.picosa),
-    ].filter((v): v is number => typeof v === "number" && v > 0);
-    return all.length ? Math.min(...all) : null;
-  }
-
-  const prices: any = product.prices;
-  if ("fijo" in prices && typeof prices.fijo === "number" && prices.fijo > 0) {
-    return prices.fijo;
-  }
-  const porSize = prices.porSize as Partial<Record<Size, number>> | undefined;
-  const all = Object.values(porSize ?? {}).filter((v): v is number => typeof v === "number" && v > 0);
-  return all.length ? Math.min(...all) : null;
-}
 
 function getPriceDescription(product: Product): string {
   if (product.category === "gomitas") {
@@ -51,6 +32,13 @@ function getDetailText(p: Product): string | null {
   return null;
 }
 
+function getExtraInfo(p: Product): string {
+  if (p.category === "gomitas") return "Ahogada o picosa";
+  return (p.toppingsIncludedMax ?? 0) > 0
+    ? `Hasta ${p.toppingsIncludedMax} toppings`
+    : "Personalizable";
+}
+
 type Props = {
   selectedIds: string[];
   selectedCountByProduct: Record<string, number>;
@@ -61,8 +49,6 @@ type Props = {
 };
 
 export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemoveLast, filter, extraProducts = [] }: Props) {
-  const [flippedId, setFlippedId] = useState<string | null>(null);
-
   const list = extraProducts.filter((p) => {
     if (filter === "todos") return true;
     if (p.categoryId) return p.categoryId === filter;
@@ -73,146 +59,92 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
     <div className="space-y-4">
       {list.map((p) => {
         const count = selectedCountByProduct[p.id] ?? 0;
-        const minPrice = getMinPrice(p);
-        const isFlipped = flippedId === p.id;
         const details = getDetailText(p);
         const disponible = p.disponible !== false;
 
         return (
-          <div
-            key={p.id}
-            className="border-b border-gray-200 pb-4 last:border-b-0"
-            style={{ perspective: "1000px" }}
-          >
-            <div
-              className="relative transition-transform duration-500"
-              style={{
-                transformStyle: "preserve-3d",
-                transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-              }}
-            >
-              {/* FRONT */}
-              <div
-                className="flex gap-4 cursor-pointer"
-                style={{ backfaceVisibility: "hidden" }}
-                onClick={() => setFlippedId(p.id)}
-              >
-                {/* Imagen 4:5 */}
-                <div className={["relative w-32 sm:w-44 md:w-48 flex-shrink-0 overflow-hidden bg-gray-100", !disponible ? "opacity-50" : ""].join(" ")} style={{ aspectRatio: "4/5" }}>
-                  {p.image ? (
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 grid place-items-center text-xs text-gray-400">
-                      Sin imagen
-                    </div>
-                  )}
-
-                  {!disponible ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-800">
-                        No disponible
-                      </span>
-                    </div>
-                  ) : count > 0 ? (
-                    <div className="absolute left-0 top-0 bg-rojo px-2 py-1 text-[11px] font-semibold text-white">
-                      x{count}
-                    </div>
-                  ) : null}
+          <div key={p.id} className="flex gap-4 border-b border-gray-200 pb-4 last:border-b-0">
+            {/* Imagen 4:5 */}
+            <div className={["relative w-32 sm:w-44 md:w-48 flex-shrink-0 overflow-hidden bg-gray-100", !disponible ? "opacity-50" : ""].join(" ")} style={{ aspectRatio: "4/5" }}>
+              {p.image ? (
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="absolute inset-0 grid place-items-center text-xs text-gray-400">
+                  Sin imagen
                 </div>
+              )}
 
-                {/* Info */}
-                <div className="flex flex-col justify-center py-2 min-w-0 flex-1">
-                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-                    {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
+              {!disponible ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-800">
+                    No disponible
                   </span>
-                  <h3 className="mt-1 text-base sm:text-lg font-medium text-gray-900 leading-tight">{p.name}</h3>
-                  {disponible ? (
-                    <p className="mt-1.5 text-sm font-semibold text-gray-900">{getPriceDescription(p)}</p>
-                  ) : (
-                    <p className="mt-1.5 text-sm font-semibold text-gray-400">No disponible por ahora</p>
-                  )}
-                  <p className="mt-2 text-[10px] text-gray-400">Toca para ver más</p>
                 </div>
-              </div>
-
-              {/* BACK */}
-              <div
-                className="absolute inset-0 flex flex-col bg-rojo cursor-pointer overflow-y-auto"
-                style={{
-                  backfaceVisibility: "hidden",
-                  transform: "rotateY(180deg)",
-                }}
-                onClick={() => setFlippedId(null)}
-              >
-                <div className="flex gap-3 flex-1 min-h-0">
-                  <div className="relative w-24 sm:w-32 flex-shrink-0 overflow-hidden bg-rojo-dark">
-                    {p.image ? (
-                      <img src={p.image} alt={p.name} className="h-full w-full object-cover opacity-40" loading="lazy" />
-                    ) : null}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2">
-                      {!disponible ? (
-                        <span className="w-full border border-white/50 text-white/70 py-1.5 text-[10px] font-medium uppercase tracking-wider text-center">
-                          No disponible
-                        </span>
-                      ) : count === 0 ? (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); onAdd(p); }}
-                          className="w-full border border-white bg-white text-rojo-dark py-1.5 text-[10px] font-medium uppercase tracking-wider active:bg-white/80"
-                        >
-                          Agregar
-                        </button>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); onRemoveLast(p.id); }}
-                              className="flex h-9 w-9 items-center justify-center border border-white/50 text-sm text-white active:bg-white/20"
-                            >
-                              −
-                            </button>
-                            <span className="w-5 text-center text-xs font-medium text-white">{count}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); onAdd(p); }}
-                              className="flex h-9 w-9 items-center justify-center border border-white bg-white text-sm text-rojo-dark active:bg-white/80"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <span className="text-[9px] text-white/50">{count} en pedido</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col justify-center py-3 min-w-0 flex-1 pr-3">
-                    <span className="text-[9px] uppercase tracking-widest text-white/50 font-medium">
-                      {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
-                    </span>
-                    <h3 className="mt-0.5 text-sm font-semibold text-white leading-tight">{p.name}</h3>
-                    {details ? (
-                      <p className="mt-1.5 text-xs text-white/80 leading-relaxed">{details}</p>
-                    ) : null}
-                    <div className="mt-1.5 text-[10px] text-white/50">
-                      {p.category === "gomitas"
-                        ? "Ahogada o picosa"
-                        : (p.toppingsIncludedMax ?? 0) > 0
-                          ? `Hasta ${p.toppingsIncludedMax} toppings`
-                          : "Personalizable"}
-                    </div>
-                    {minPrice != null ? (
-                      <p className="mt-1.5 text-sm font-semibold text-white">Desde {cop(minPrice)}</p>
-                    ) : null}
-                    <p className="mt-2 text-[10px] text-white/40">Toca para volver</p>
-                  </div>
+              ) : count > 0 ? (
+                <div className="absolute left-0 top-0 bg-rojo px-2 py-1 text-[11px] font-semibold text-white">
+                  x{count}
                 </div>
+              ) : null}
+            </div>
+
+            {/* Info: precio, descripción y controles, todo visible de una vez */}
+            <div className="flex flex-col justify-center py-2 min-w-0 flex-1">
+              <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
+              </span>
+              <h3 className="mt-1 text-base sm:text-lg font-medium text-gray-900 leading-tight">{p.name}</h3>
+
+              {disponible ? (
+                <p className="mt-1 text-sm font-semibold text-gray-900">{getPriceDescription(p)}</p>
+              ) : (
+                <p className="mt-1 text-sm font-semibold text-gray-400">No disponible por ahora</p>
+              )}
+
+              {details ? (
+                <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{details}</p>
+              ) : null}
+
+              <p className="mt-1 text-[10px] text-gray-400">{getExtraInfo(p)}</p>
+
+              <div className="mt-3">
+                {!disponible ? (
+                  <span className="inline-block border border-gray-300 text-gray-400 py-1.5 px-4 text-[11px] font-medium uppercase tracking-wider">
+                    No disponible
+                  </span>
+                ) : count === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onAdd(p)}
+                    className="inline-flex items-center gap-1.5 border border-rojo bg-rojo py-1.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-white active:bg-rojo-dark"
+                  >
+                    + Agregar
+                  </button>
+                ) : (
+                  <div className="inline-flex items-center gap-3 border border-rojo px-1">
+                    <button
+                      type="button"
+                      onClick={() => onRemoveLast(p.id)}
+                      className="flex h-8 w-8 items-center justify-center text-rojo active:bg-rojo-light"
+                      aria-label="Quitar uno"
+                    >
+                      −
+                    </button>
+                    <span className="w-5 text-center text-sm font-semibold text-gray-900">{count}</span>
+                    <button
+                      type="button"
+                      onClick={() => onAdd(p)}
+                      className="flex h-8 w-8 items-center justify-center text-rojo active:bg-rojo-light"
+                      aria-label="Agregar uno más"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

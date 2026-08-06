@@ -13,6 +13,14 @@ export interface Promotion {
   productosIds: string[];
   // Cantidad mínima para activar (ej: 2x1 requiere 2)
   cantidadMinima?: number;
+  // Código de cupón (mayúsculas). Si se define, el descuento solo se activa
+  // cuando el cliente lo ingresa y valida. Si está vacío, la promoción se
+  // aplica automáticamente a los productos que cumplan las condiciones.
+  codigo?: string;
+  // Límite de clientes que pueden usar esta promoción/cupón. Vacío = sin límite.
+  usosMaximos?: number;
+  // Cuántas veces ya se ha usado (se incrementa al crear un pedido con esta promo).
+  usosActuales?: number;
   activa: boolean;
   fechaInicio?: Timestamp;
   fechaFin?: Timestamp;

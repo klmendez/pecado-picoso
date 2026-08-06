@@ -5,7 +5,7 @@ import type { OrderItem } from "../lib/whatsapp";
 import { defaultSize } from "../components/armar-pedido/utils";
 
 type OrderItemsAction =
-  | { type: "add"; product: Product }
+  | { type: "add"; item: OrderItem }
   | { type: "remove"; itemId: string }
   | { type: "removeLastOfProduct"; productId: string }
   | { type: "duplicate"; itemId: string }
@@ -33,7 +33,7 @@ function createItem(product: Product): OrderItem {
 function reducer(state: State, action: OrderItemsAction): State {
   switch (action.type) {
     case "add": {
-      return [...state, createItem(action.product)];
+      return [...state, action.item];
     }
     case "remove": {
       return state.filter((it) => it.id !== action.itemId);
@@ -73,7 +73,9 @@ export function useOrderItems(initialItems: OrderItem[] = []) {
   const [items, dispatch] = useReducer(reducer, initialItems);
 
   const addProduct = useCallback((product: Product) => {
-    dispatch({ type: "add", product });
+    const item = createItem(product);
+    dispatch({ type: "add", item });
+    return item.id;
   }, []);
 
   const updateItem = useCallback((itemId: string, patch: Partial<OrderItem>) => {

@@ -38,18 +38,20 @@ export default function Toppings({
 
   return (
     <section className="w-full">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{title}</div>
-          <div className="text-[11px] text-gray-500">
-            {subtitle}{" "}
-            <span className="text-gray-400">({count}/{max})</span>
+      {title || subtitle ? (
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{title}</div>
+            <div className="text-[11px] text-gray-500">
+              {subtitle}{" "}
+              <span className="text-gray-400">({count}/{max})</span>
+            </div>
           </div>
+          {ok && count > 0 ? (
+            <span className="text-[10px] text-rojo">✓</span>
+          ) : null}
         </div>
-        {ok && count > 0 ? (
-          <span className="text-[10px] text-rojo">✓</span>
-        ) : null}
-      </div>
+      ) : null}
 
       <div className="mt-2 grid grid-cols-4 sm:grid-cols-5 gap-3 justify-items-center">
         {TOPPINGS.map((t) => {
