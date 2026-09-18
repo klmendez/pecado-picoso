@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { newestProductsFirst } from '../lib/productOrder';
 
 export type PriceType = 'fijo' | 'porSize' | 'porVersion';
 
@@ -21,6 +22,7 @@ export interface FirestoreProduct {
   sizes?: string[];
   categoryId: string;
   image?: string;
+  badge?: string;
   disponible?: boolean; // false = desactivado por el admin
   createdAt?: any;
 }
@@ -29,7 +31,7 @@ export const ProductService = {
   async getProducts(): Promise<FirestoreProduct[]> {
     if (!db) throw new Error('Firebase no inicializado');
     const snap = await getDocs(collection(db, 'productos'));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreProduct));
+    return newestProductsFirst(snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreProduct)));
   },
 
   async addProduct(data: Omit<FirestoreProduct, 'id'>): Promise<void> {

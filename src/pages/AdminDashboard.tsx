@@ -6,6 +6,7 @@ import {
 import { Timestamp, deleteField } from 'firebase/firestore';
 import { OrderService } from '../services/orderService';
 import { ProductService, type FirestoreProduct } from '../services/productService';
+import ProductBadge from '../components/ProductBadge';
 import { ClientService, type FirestoreClient } from '../services/clientService';
 import { WhatsAppNotificationService } from '../services/whatsappNotificationService';
 import { PromotionService } from '../services/promotionService';
@@ -85,6 +86,7 @@ export default function AdminDashboard() {
     sizes: '',
     categoryId: '',
     image: '',
+    badge: '',
     disponible: true,
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -416,6 +418,7 @@ export default function AdminDashboard() {
       description: prodForm.description.trim(),
       categoryId: prodForm.categoryId,
       image: prodForm.image.trim(),
+      badge: prodForm.badge,
       toppingsIncludedMax: Number(prodForm.toppingsIncludedMax) || 0,
       sizes: prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean),
       disponible: prodForm.disponible,
@@ -477,7 +480,7 @@ export default function AdminDashboard() {
       setProdForm({
         name: '', description: '', price: '', priceType: 'fijo',
         priceOptions: { fijo: '', porSize: { pequeno: '', mediano: '', grande: '' }, porVersion: { ahogada: { pequeno: '', mediano: '', grande: '' }, picosa: { pequeno: '', mediano: '', grande: '' } } },
-        toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', disponible: true,
+        toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', badge: '', disponible: true,
       });
       const updated = await ProductService.getProducts();
       setProducts(updated);
@@ -517,6 +520,7 @@ export default function AdminDashboard() {
       sizes: (p.sizes || []).join(', '),
       categoryId: p.categoryId,
       image: p.image || '',
+      badge: p.badge || '',
       disponible: p.disponible !== false,
     });
   };
@@ -526,7 +530,7 @@ export default function AdminDashboard() {
     setProdForm({
       name: '', description: '', price: '', priceType: 'fijo',
       priceOptions: { fijo: '', porSize: { pequeno: '', mediano: '', grande: '' }, porVersion: { ahogada: { pequeno: '', mediano: '', grande: '' }, picosa: { pequeno: '', mediano: '', grande: '' } } },
-      toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', disponible: true,
+      toppingsIncludedMax: '4', sizes: '', categoryId: '', image: '', badge: '', disponible: true,
     });
   };
 
@@ -1281,6 +1285,7 @@ export default function AdminDashboard() {
                     onBlur={(e) => e.currentTarget.style.borderColor = '#e0e0e0'}
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: '#666' }}>Descripción</label>
                   <input
@@ -1423,6 +1428,24 @@ export default function AdminDashboard() {
               </div>
 
               <form onSubmit={handleAddProduct} className="flex flex-col gap-3">
+                <div>
+                  <label htmlFor="product-badge" className="block text-xs font-semibold mb-1" style={{ color: '#666' }}>Aviso del producto</label>
+                  <select
+                    id="product-badge"
+                    value={prodForm.badge}
+                    onChange={(e) => setProdForm({ ...prodForm, badge: e.target.value })}
+                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">Sin aviso</option>
+                    <option value="Nuevo">Nuevo</option>
+                    <option value="Lo más pedido">Lo más pedido</option>
+                    {prodForm.badge && !['Nuevo', 'Lo más pedido'].includes(prodForm.badge) && (
+                      <option value={prodForm.badge}>{prodForm.badge}</option>
+                    )}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Se muestra en el menú. Puedes cambiarlo o quitarlo cuando quieras.</p>
+                  {prodForm.badge && <div className="mt-2"><ProductBadge badge={prodForm.badge} /></div>}
+                </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: '#666' }}>Nombre *</label>
                   <input
@@ -1657,6 +1680,7 @@ export default function AdminDashboard() {
                               </span>
                             )}
                           </div>
+                          {p.badge && <div className="mt-1"><ProductBadge badge={p.badge} /></div>}
                           <p className="text-xs" style={{ color: '#888' }}>
                             {cop(p.price ?? 0)} · {catName}
                           </p>

@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { Product, Size, Version } from "../../data/products";
 import { useStoreProducts } from "../../hooks/useStoreProducts";
 import { cop } from "../../lib/format";
+import ProductBadge from "../ProductBadge";
+import ProductImage from "../ProductImage";
 
 const SLIDE_INTERVAL_MS = 6000;
 
@@ -139,7 +141,7 @@ export default function ProductCarousel() {
         >
           <div className="flex-1 space-y-3 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-gray-400">
-              {current.badge ? <span className="rounded-full border border-gray-300 px-3 py-1 text-[10px] tracking-[0.25em] text-gray-600">{current.badge}</span> : null}
+              <ProductBadge badge={current.badge} />
               <span>{current.category === "gomitas" ? "Gomitas" : "FrutaFresh"}</span>
             </div>
             <h3 className="text-xl sm:text-3xl font-black leading-snug text-black">{current.name}</h3>
@@ -156,16 +158,16 @@ export default function ProductCarousel() {
           </div>
 
           <div className="flex-1 flex items-center justify-center">
-            <div className="relative h-48 w-48 sm:h-68 sm:w-68 md:h-80 md:w-80 overflow-hidden rounded-[2.5rem] border border-gray-300 bg-gray-100 shadow-[0_30px_55px_rgba(0,0,0,0.45)]">
+            <div className="relative aspect-[3/4] w-48 sm:w-60 md:w-72 overflow-hidden rounded-2xl border border-gray-300 bg-gray-100 shadow-[0_30px_55px_rgba(0,0,0,0.45)]">
               {current.image ? (
-                <img
+                <ProductImage
                   src={current.image}
                   alt={current.name}
-                  className="h-full w-full object-cover transition-transform duration-[900ms] ease-out"
+                  className="absolute inset-0 h-full w-full object-contain p-2"
                   loading="lazy"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
                   Imagen pendiente
                 </div>
               )}

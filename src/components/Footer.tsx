@@ -23,6 +23,14 @@ export default function Footer() {
           </a>
         </div>
         <p className="text-gray-600 text-[10px]">© {new Date().getFullYear()} Pecado Picoso</p>
+        <a
+          href="https://api.whatsapp.com/send?phone=573148320587&text=Venimos%20desde%20el%20sitio%20web%20de%20Pecado%20Picoso%20y%20nos%20interesa%20un%20men%C3%BA%20web%20como%20ese"
+          target="_blank"
+          rel="noreferrer"
+          className="text-[9px] tracking-wide text-blue-200/55 hover:text-blue-200"
+        >
+          Menú Web diseñado por Akora
+        </a>
       </div>
 
       {/* Desktop footer (full) */}
@@ -111,6 +119,14 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 mt-10 pt-6 text-center text-gray-500 text-xs">
           © {new Date().getFullYear()} Pecado Picoso. Todos los derechos reservados.
+          <a
+            href="https://api.whatsapp.com/send?phone=573148320587&text=Venimos%20desde%20el%20sitio%20web%20de%20Pecado%20Picoso%20y%20nos%20interesa%20un%20men%C3%BA%20web%20como%20ese"
+            target="_blank"
+            rel="noreferrer"
+            className="ml-3 text-[10px] tracking-wide text-blue-200/55 hover:text-blue-200"
+          >
+            Menú Web diseñado por Akora
+          </a>
         </div>
       </div>
     </footer>

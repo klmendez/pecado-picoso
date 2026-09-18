@@ -1,0 +1,7 @@
+.product-image-foreground {
+  position: relative;
+}
+
+.product-image-foreground.absolute {
+  position: absolute;
+}

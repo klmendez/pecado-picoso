@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import AkoraBubble from "./components/AkoraBubble";
 
 import Home from "./pages/Home";
 import CatalogoPage from "./pages/CatalogoPage";
@@ -43,6 +44,7 @@ function AppLayout() {
         </Routes>
       </main>
       {!isAdmin && <Footer />}
+      <AkoraBubble />
     </div>
   );
 }

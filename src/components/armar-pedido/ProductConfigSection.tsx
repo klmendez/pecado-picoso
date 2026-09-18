@@ -7,6 +7,7 @@ import { getBasePrice } from "../../lib/pricing";
 import { extrasTotal } from "../../lib/pricing";
 import Referencias from "../Referencias";
 import Toppings from "../Toppings";
+import ProductImage from "../ProductImage";
 import { getAvailableSizes, maxToppingsFor, labelSize, toppingsNames, extrasLine } from "./utils";
 
 type MissingSection = "referencia" | "toppings" | "extras";
@@ -232,9 +233,9 @@ export default function ProductConfigSection({
 
               return (
                 <div key={it.id} className="py-3 flex items-start gap-3">
-                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-gray-100">
+                  <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-md bg-gray-100">
                     {p.image ? (
-                      <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                      <ProductImage src={p.image} alt={p.name} className="h-full w-full object-contain" />
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -399,9 +400,9 @@ export default function ProductConfigSection({
                   <div className="mt-4 space-y-6">
                     {/* Imagen grande del producto */}
                     <div className="mx-auto w-full max-w-[240px] sm:mx-0 sm:max-w-[280px]">
-                      <div className="relative w-full overflow-hidden rounded-lg bg-gray-100" style={{ aspectRatio: "4/5" }}>
+                      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-100">
                         {p.image ? (
-                          <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                          <ProductImage src={p.image} alt={p.name} className="absolute inset-0 h-full w-full object-contain" />
                         ) : (
                           <div className="absolute inset-0 grid place-items-center text-xs text-gray-400">Sin imagen</div>
                         )}

@@ -50,6 +50,7 @@ export function useStoreProducts() {
           name: fp.name,
           description: fp.description || "",
           image: fp.image,
+          badge: fp.badge,
           disponible: fp.disponible !== false,
         };
 

@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import type { Product, Size } from "../data/products";
 import { useStoreProducts } from "../hooks/useStoreProducts";
 import { cop } from "../lib/format";
+import ProductBadge from "../components/ProductBadge";
+import ProductImage from "../components/ProductImage";
 import imgAhogado from "../assets/referencias/ahogado.jpg";
 import imgPicosin from "../assets/referencias/picosin.jpg";
 
@@ -169,16 +171,12 @@ export default function Catalogo({
                     >
                       <div className="flex items-start gap-5">
                         {/* Foto MÁS grande (NO redonda) */}
-                        <div className="relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 shrink-0 overflow-hidden bg-gray-50 ring-1 ring-gray-200 overflow-hidden">
+                        <div className="relative aspect-[3/4] w-32 sm:w-36 md:w-40 shrink-0 overflow-hidden bg-gray-50 ring-1 ring-gray-200">
                           {p.image ? (
-                            <img
+                            <ProductImage
                               src={p.image}
                               alt={p.name}
-                              className={[
-                                "h-full w-full object-cover transition-transform duration-500",
-                                "group-hover:scale-[1.05]",
-                                expanded ? "scale-[1.02]" : "",
-                              ].join(" ")}
+                              className="absolute inset-0 h-full w-full object-contain"
                               loading="lazy"
                             />
                           ) : (
@@ -199,6 +197,7 @@ export default function Catalogo({
                             {p.category === "gomitas" ? "Gomitas" : "FrutaFresh"}
                           </div>
 
+                          {p.badge && <div className="mt-2"><ProductBadge badge={p.badge} /></div>}
                           <div className="mt-1 flex items-center gap-2 text-lg sm:text-xl font-semibold leading-snug text-black">
                             {p.name}
                             {p.disponible === false && (

@@ -1,6 +1,8 @@
 import type { Product, Size } from "../data/products";
 import { cop } from "../lib/format";
 import type { CategoryTabValue } from "./CategoryTabs";
+import ProductBadge from "./ProductBadge";
+import ProductImage from "./ProductImage";
 
 function getPriceDescription(product: Product): string {
   if (product.category === "gomitas") {
@@ -12,11 +14,11 @@ function getPriceDescription(product: Product): string {
     return parts.length ? parts.join(" • ") : "Precio por confirmar";
   }
 
-  const prices: any = product.prices;
+  const prices = product.prices as { fijo?: number; porSize?: Partial<Record<Size, number>> };
   if ("fijo" in prices && typeof prices.fijo === "number" && prices.fijo > 0) {
     return cop(prices.fijo);
   }
-  const porSize = prices.porSize as Partial<Record<Size, number>> | undefined;
+  const porSize = prices.porSize;
   const parts: string[] = [];
   if (porSize?.pequeno) parts.push(`Pequeño ${cop(porSize.pequeno)}`);
   if (porSize?.mediano) parts.push(`Mediano ${cop(porSize.mediano)}`);
@@ -25,7 +27,7 @@ function getPriceDescription(product: Product): string {
 }
 
 function getDetailText(p: Product): string | null {
-  const anyP = p as any;
+  const anyP = p as Product & { ingredients?: string | string[] };
   if (Array.isArray(anyP.ingredients) && anyP.ingredients.length) return anyP.ingredients.join(", ");
   if (typeof anyP.ingredients === "string" && anyP.ingredients.trim()) return anyP.ingredients.trim();
   if (typeof anyP.description === "string" && anyP.description.trim()) return anyP.description.trim();
@@ -64,13 +66,13 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
 
         return (
           <div key={p.id} className="flex gap-4 border-b border-gray-200 pb-4 last:border-b-0">
-            {/* Imagen 4:5 */}
-            <div className={["relative w-32 sm:w-44 md:w-48 flex-shrink-0 overflow-hidden bg-gray-100", !disponible ? "opacity-50" : ""].join(" ")} style={{ aspectRatio: "4/5" }}>
+            {/* Presentación vertical del producto */}
+            <div className={["relative aspect-[3/4] w-32 sm:w-44 md:w-48 self-start flex-shrink-0 overflow-hidden bg-gray-100", !disponible ? "opacity-50" : ""].join(" ")}>
               {p.image ? (
-                <img
+                <ProductImage
                   src={p.image}
                   alt={p.name}
-                  className="h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-contain"
                   loading="lazy"
                 />
               ) : (
@@ -84,6 +86,10 @@ export default function CatalogoCompacto({ selectedCountByProduct, onAdd, onRemo
                   <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-800">
                     No disponible
                   </span>
+                </div>
+              ) : p.badge ? (
+                <div className="absolute right-1 top-2 z-10">
+                  <ProductBadge badge={p.badge} variant="purchase" />
                 </div>
               ) : count > 0 ? (
                 <div className="absolute left-0 top-0 bg-rojo px-2 py-1 text-[11px] font-semibold text-white">

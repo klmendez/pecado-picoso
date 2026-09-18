@@ -5,7 +5,7 @@ import pecadoRealImg from "../assets/products/pecado-real.png";
 import leyendaPicosaImg from "../assets/products/leyenda-picosa.png";
 import duoShotImg from "../assets/products/duo-shot.png";
 import mangoShotImg from "../assets/products/mango-shot.png";
-import pinasonImg from "../assets/products/pinason-picoso.png";
+import pinasonImg from "../assets/products/pinason-picoso-vertical.png";
 import mamolokoImg from "../assets/products/mamoloko.jpeg";
 export type Category = "gomitas" | "frutafresh";
 export type Size = "pequeno" | "mediano" | "grande";
