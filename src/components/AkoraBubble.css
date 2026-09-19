@@ -1,9 +1,10 @@
 .akora-widget {
   position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 30;
   display: flex;
+  flex-direction: row-reverse;
   align-items: flex-end;
   gap: 12px;
   max-width: calc(100vw - 32px);
@@ -29,23 +30,29 @@
 .akora-cta { display: flex; align-items: center; gap: 3px; margin-top: 3px; color: #214e78; font-size: 10px; font-weight: 700; }
 .akora-dismiss { position: absolute; top: 2px; right: 2px; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: #52667a; cursor: pointer; }
 .akora-dismiss:hover { background: #eee9dc; }
-.akora-notice--mini { position: absolute; right: 0; bottom: calc(100% + 8px); width: auto; padding: 0; border: 0; border-radius: 999px; background: #123d62; box-shadow: 0 5px 16px #071c3326; }
+.akora-notice--mini { position: absolute; left: 0; bottom: calc(100% + 8px); width: auto; padding: 0; border: 0; border-radius: 999px; background: #123d62; box-shadow: 0 5px 16px #071c3326; animation: akora-mini-pop .25s ease; }
 .akora-mini-notice { display: block; border: 0; border-radius: 999px; padding: 7px 11px; background: transparent; color: #fffdf5; cursor: pointer; font: 700 10px/1.1 'DM Sans', system-ui, sans-serif; letter-spacing: .01em; white-space: nowrap; }
 .akora-mini-notice:hover { background: #1d527d; }
-.akora-bubble { position: relative; display: block; flex-shrink: 0; width: 64px; height: 64px; padding: 3px; border: 2px solid #071c33; background: #fffdf5; border-radius: 50%; box-shadow: 0 6px 24px #071c3333; transition: transform .2s ease; }
+.akora-bubble { position: relative; display: block; flex-shrink: 0; width: 46px; height: 46px; padding: 2px; border: 2px solid #071c33; background: #fffdf5; border-radius: 50%; box-shadow: 0 5px 18px #071c332e; transition: transform .2s ease; }
 .akora-bubble img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; }
 .akora-bubble:hover { transform: translateY(-3px); }
-.akora-status { position: absolute; top: 0; right: 0; width: 13px; height: 13px; background: #214e78; border: 2px solid #fffdf5; border-radius: 50%; }
+.akora-status { position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; background: #214e78; border: 2px solid #fffdf5; border-radius: 50%; }
 .akora-widget a:focus-visible, .akora-dismiss:focus-visible { outline: 3px solid #214e78; outline-offset: 4px; }
+
+@keyframes akora-mini-pop {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 @media (max-width: 639px) {
   .akora-widget { gap: 8px; }
-  .akora-widget--order { bottom: calc(92px + env(safe-area-inset-bottom)); }
-  .akora-bubble { width: 60px; height: 60px; }
+  .akora-widget--order { bottom: calc(82px + env(safe-area-inset-bottom)); }
+  .akora-bubble { width: 44px; height: 44px; }
   .akora-notice { width: 200px; padding: 10px 24px 10px 11px; }
-  .akora-notice--mini { right: 0; width: auto; padding: 0; }
+  .akora-notice--mini { left: 0; width: auto; padding: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .akora-bubble { transition: none; }
+  .akora-notice--mini { animation: none; }
 }
