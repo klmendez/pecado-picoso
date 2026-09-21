@@ -1,7 +1,7 @@
 export const BRAND_NAME = "Pecado Picoso";
 export const INSTAGRAM = "@pecadopicoso";
 export const INSTAGRAM_URL = "https://www.instagram.com/pecadopicoso.pop/";
-export const WHATSAPP_PHONE = "3178371144";
+export const WHATSAPP_PHONE = "3148320587";
 export const NEQUI_PHONE = "317 770 82 26";
 export const CITY = "Popayán, Colombia";
 

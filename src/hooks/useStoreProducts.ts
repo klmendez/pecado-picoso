@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Product, Size } from "../data/products";
+import { PRODUCTS, type Product, type Size } from "../data/products";
 import { ProductService } from "../services/productService";
 import type { FirestoreProduct } from "../services/productService";
 import { CategoryService } from "../services/categoryService";
@@ -27,6 +27,8 @@ export function useStoreProducts() {
         CategoryService.getCategories(),
       ]);
 
+      const localProductsById = new Map(PRODUCTS.map(product => [product.id, product]));
+
       const storeCats = rawCategories.map((c: FirestoreCategory) => ({
         id: c.id!,
         name: c.name,
@@ -40,6 +42,7 @@ export function useStoreProducts() {
 
       // Map Firestore products to store Product type
       const mapped: Product[] = rawProducts.map((fp: FirestoreProduct) => {
+        const localProduct = localProductsById.get(fp.id!);
         const cat = catMap.get(fp.categoryId);
         const catName = (cat?.name ?? "").toLowerCase();
         const isGomitas = catName.includes("gomita") || catName.includes("goma");
@@ -49,7 +52,7 @@ export function useStoreProducts() {
           categoryId: fp.categoryId,
           name: fp.name,
           description: fp.description || "",
-          image: fp.image,
+          image: localProduct?.image || fp.image,
           badge: fp.badge,
           disponible: fp.disponible !== false,
         };
@@ -107,8 +110,13 @@ export function useStoreProducts() {
         };
       });
 
-      setProducts(mapped);
+      // La demo y el catálogo siguen mostrando los productos incluidos en el
+      // proyecto si Firestore todavía no tiene productos configurados.
+      setProducts(mapped.length > 0 ? mapped : PRODUCTS);
     } catch (err: any) {
+      // Si Firebase está temporalmente fuera de servicio, usar el catálogo
+      // local evita que la tienda aparezca vacía y conserva sus imágenes.
+      setProducts(PRODUCTS);
       setError(err.message || "Error cargando productos");
     } finally {
       setLoading(false);
